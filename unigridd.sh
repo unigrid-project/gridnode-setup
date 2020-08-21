@@ -50,9 +50,9 @@ TIPS='HKSgkhmsbcHLSXHPtLXCFcHuxtCCJjhLFM'
 # Dropbox Addnodes.
 DROPBOX_ADDNODES='ashr5b5j9deewpq'
 # Dropbox Bootstrap.
-DROPBOX_BOOTSTRAP='pki3zjfyw0tpek9'
+DROPBOX_BOOTSTRAP='https://unigrid.org/binaries/bootstrap.zip'
 # Dropbox blocks and chainstake folders.
-DROPBOX_BLOCKS_N_CHAINS='https://unigrid.org/binaries/BLOCKS_N_CHANZ.tar.gz'
+DROPBOX_BLOCKS_N_CHAINS='https://unigrid.org/binaries/blocks_n_chains.tar.gz'
 
 ASCII_ART () {
 echo -e "\e[0m"
