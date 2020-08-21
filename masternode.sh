@@ -2136,7 +2136,7 @@ while [[ ! -f ~/___mn.sh ]] || [[ \$( grep -Fxc "# End of masternode setup scrip
 do
   rm -f ~/___mn.sh
   echo "Downloading Masternode Setup Script."
-  wget -4qo- gist.githubusercontent.com/mikeytown2/1637d98130ac7dfbfa4d24bac0598107/raw/mcarper.sh -O ~/___mn.sh
+  wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O ~/___mn.sh
   COUNTER=$((COUNTER+1))
   if [[ "\${COUNTER}" -gt 3 ]]
   then
@@ -3933,7 +3933,7 @@ _masternode_dameon_2 () {
     while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." /tmp/___mn.sh ) -eq 0 ]]
     do
       rm -f /tmp/___mn.sh 2>/dev/null
-      wget -4qo- gist.githubusercontent.com/mikeytown2/1637d98130ac7dfbfa4d24bac0598107/raw/mcarper.sh -O /tmp/___mn.sh
+      wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O /tmp/___mn.sh
       chmod 666 /tmp/___mn.sh
       COUNTER=$((COUNTER+1))
       if [[ "${COUNTER}" -gt 3 ]]
@@ -4001,7 +4001,7 @@ _masternode_dameon_2 () {
       while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." /tmp/___mn.sh ) -eq 0 ]]
       do
         rm -f /tmp/___mn.sh 2>/dev/null
-        wget -4qo- gist.githubusercontent.com/mikeytown2/1637d98130ac7dfbfa4d24bac0598107/raw/mcarper.sh -O /tmp/___mn.sh
+        wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O /tmp/___mn.sh
         chmod 666 /tmp/___mn.sh
         COUNTER=$((COUNTER+1))
         if [[ "${COUNTER}" -gt 3 ]]
@@ -5200,7 +5200,7 @@ ${TEMP_FILE}
       while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." /tmp/___mn.sh ) -eq 0 ]]
       do
         rm -f /tmp/___mn.sh 2>/dev/null
-        wget -4qo- gist.githubusercontent.com/mikeytown2/1637d98130ac7dfbfa4d24bac0598107/raw/mcarper.sh -O /tmp/___mn.sh
+        wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O /tmp/___mn.sh
         chmod 666 /tmp/___mn.sh
         COUNTER=$((COUNTER+1))
         if [[ "${COUNTER}" -gt 3 ]]
