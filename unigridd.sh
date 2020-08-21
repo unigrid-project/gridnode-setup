@@ -52,7 +52,7 @@ DROPBOX_ADDNODES='ashr5b5j9deewpq'
 # Dropbox Bootstrap.
 DROPBOX_BOOTSTRAP='pki3zjfyw0tpek9'
 # Dropbox blocks and chainstake folders.
-DROPBOX_BLOCKS_N_CHAINS='4uzjmodkkxj2wsg'
+DROPBOX_BLOCKS_N_CHAINS='https://unigrid.org/binaries/BLOCKS_N_CHANZ.tar.gz'
 
 ASCII_ART () {
 echo -e "\e[0m"
