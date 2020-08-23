@@ -48,7 +48,7 @@ MULTI_IP_MODE=0
 # Tip Address.
 TIPS='HKSgkhmsbcHLSXHPtLXCFcHuxtCCJjhLFM'
 # Dropbox Addnodes.
-DROPBOX_ADDNODES=''
+DROPBOX_ADDNODES='https://unigrid.org/binaries/addnodes.txt'
 # Dropbox Bootstrap.
 DROPBOX_BOOTSTRAP='https://unigrid.org/binaries/bootstrap.zip'
 # Dropbox blocks and chainstake folders.
