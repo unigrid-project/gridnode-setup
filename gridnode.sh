@@ -25,33 +25,33 @@ ARG6=${6}
 BITBUCKET_REGEX='^https://bitbucket\.org/+*'
 # GITHUB_REGEX='^https://github\.com/+*'
 
-if [[ -z "${MASTERNODE_CALLER}" ]]
+if [[ -z "${GRIDNODE_CALLER}" ]]
 then
-  MASTERNODE_CALLER='masternode '
+  GRIDNODE_CALLER='gridnode '
 fi
-if [[ -z "${MASTERNODE_NAME}" ]]
+if [[ -z "${GRIDNODE_NAME}" ]]
 then
-  MASTERNODE_NAME="${MASTERNODE_CALLER%% }"
+  GRIDNODE_NAME="${GRIDNODE_CALLER%% }"
 fi
-if [[ -z "${MASTERNODE_PREFIX}" ]]
+if [[ -z "${GRIDNODE_PREFIX}" ]]
 then
-  MASTERNODE_PREFIX='mn'
+  GRIDNODE_PREFIX='gn'
 fi
-if [[ -z "${MASTERNODE_GENKEY_COMMAND}" ]]
+if [[ -z "${GRIDNODE_GENKEY_COMMAND}" ]]
 then
-  MASTERNODE_GENKEY_COMMAND="${MASTERNODE_CALLER}genkey"
+  GRIDNODE_GENKEY_COMMAND="${GRIDNODE_CALLER}genkey"
 fi
-if [[ -z "${MASTERNODE_PRIVKEY}" ]]
+if [[ -z "${GRIDNODE_PRIVKEY}" ]]
 then
-  MASTERNODE_PRIVKEY="${MASTERNODE_NAME}privkey"
+  GRIDNODE_PRIVKEY="${GRIDNODE_NAME}privkey"
 fi
-if [[ -z "${MASTERNODE_CONF}" ]]
+if [[ -z "${GRIDNODE_CONF}" ]]
 then
-  MASTERNODE_CONF="${MASTERNODE_NAME}.conf"
+  GRIDNODE_CONF="${GRIDNODE_NAME}.conf"
 fi
-if [[ -z "${MASTERNODE_LIST}" ]]
+if [[ -z "${GRIDNODE_LIST}" ]]
 then
-  MASTERNODE_LIST="${MASTERNODE_CALLER} list"
+  GRIDNODE_LIST="${GRIDNODE_CALLER} list"
 fi
 
 
@@ -181,314 +181,6 @@ then
   FIRST_SYNC=1
 fi
 
-GET_MISSING_COIN_PARAMS () {
-if [[ ! -z "${GITHUB_REPO}" ]]
-then
-  if [[ -z "${BIN_BASE}" ]]
-  then
-    _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/configure.ac" )
-    if [[ -z "${_CONFIGURE_AC}" ]]
-    then
-      _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/configure.ac" )
-    fi
-    DAEMON_BIN=$( echo "${_CONFIGURE_AC}" | grep -m 1 "BITCOIN_DAEMON_NAME" | cut -d '=' -f2 )
-    CONTROLLER_BIN=$( echo "${_CONFIGURE_AC}" | grep -m 1 "BITCOIN_CLI_NAME" | cut -d '=' -f2 )
-    if [[ -z "${DAEMON_BIN}" ]]
-    then
-      _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/Makefile.am" )
-      if [[ -z "${_CONFIGURE_AC}" ]]
-      then
-        _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/Makefile.am" )
-      fi
-      DAEMON_BIN=$( echo "${_CONFIGURE_AC}" | grep -m 1 "BITCOIND_BIN" | cut -d '=' -f2 | cut -d '/' -f3 | cut -d '$' -f1 )
-      CONTROLLER_BIN=$( echo "${_CONFIGURE_AC}" | grep -m 1 "BITCOIN_CLI_BIN" | cut -d '=' -f2 | cut -d '/' -f3 | cut -d '$' -f1 )
-    fi
-    if [[ -z "${DAEMON_BIN}" ]]
-    then
-      _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/makefile.unix" )
-      if [[ -z "${_CONFIGURE_AC}" ]]
-      then
-        _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/makefile.unix" )
-      fi
-      DAEMON_BIN=$( echo "${_CONFIGURE_AC}" | grep -m 1 -E "all:[[:space:]]" | cut -d ':' -f2 | awk '{print $1}' )
-    fi
-
-    if [[ -z "${DAEMON_BIN}" ]]
-    then
-      _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/Makefile.am" )
-      if [[ -z "${_CONFIGURE_AC}" ]]
-      then
-        _CONFIGURE_AC=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/Makefile.am" )
-      fi
-      DAEMON_BIN=$( echo "${_CONFIGURE_AC}" | grep 'bin_PROGRAMS '| cut -d '=' -f2 | sed '/^$/d' | tr '\n' ' ' | awk '{print $1}' )
-      CONTROLLER_BIN=$( echo "${_CONFIGURE_AC}" | grep 'bin_PROGRAMS '| cut -d '=' -f2 | sed '/^$/d' | tr '\n' ' ' | awk '{print $2}' )
-    fi
-
-
-    if [[ ! -z "${CONTROLLER_BIN}" ]]
-    then
-      BIN_BASE=$( echo "${CONTROLLER_BIN}" | cut -d '-' -f1 )
-    fi
-    if [[ -z "${BIN_BASE}" ]] && [[ ! -z "${DAEMON_BIN}" ]]
-    then
-      CONTROLLER_BIN="${DAEMON_BIN}"
-      BIN_BASE="${CONTROLLER_BIN::-1}"
-    fi
-  fi
-
-  # GitHub Project Folder
-  PROJECT_DIR=$( echo "${GITHUB_REPO}" | tr '/' '_' )
-
-  if [[ -z "${DIRECTORY}" ]] || [[ -z "${CONF}" ]]
-  then
-    _SRC_UTIL=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/util.cpp" )
-    if [[ -z "${_SRC_UTIL}" ]]
-    then
-      _SRC_UTIL=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/util.cpp" )
-    fi
-    DIRECTORY=$( echo "${_SRC_UTIL}" | grep -m 1 -E $'return[[:space:]]pathRet[[:space:]]/[[:space:]](\"|\')\.' | grep -oE '/.*' | grep -oE ' .*' | awk '{print $1}' | sed 's/^"\(.*\)".*/\1/' )
-    # '
-    CONF=$( echo "${_SRC_UTIL}" | grep -F -m 1 'boost::filesystem::path pathConfigFile(GetArg("-conf",' | awk '{print $3}' | sed 's/^"\(.*\)".*/\1/' | tr ');' ' ' | sed 's/^ *//;s/ *$//' )
-    if [[ -z "${CONF}" ]]
-    then
-      CONF=$( echo "${_SRC_UTIL}" | grep -F -m 1 'BITCOIN_CONF_FILENAME' | cut -d '=' -f2 | sed 's/^ *//;s/ *$//' | sed 's/^"\(.*\)".*/\1/' )
-    fi
-    if [[ $( echo "${CONF}" | grep -cE '.*\.conf$' ) -eq 0 ]]
-    then
-      CONF=$( echo "${_SRC_UTIL}" | grep -m 1 -E "${CONF}.*=.*" | cut -d '=' -f2 | sed 's/^ *//;s/ *$//' | sed 's/^"\(.*\)".*/\1/' )
-    fi
-  fi
-
-  if [[ -z "${DEFAULT_PORT}" ]]
-  then
-    _SRC_CHAIN=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/chainparams.cpp" )
-    if [[ -z "${_SRC_CHAIN}" ]]
-    then
-      _SRC_CHAIN=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/chainparams.cpp" )
-    fi
-    DEFAULT_PORT=$( echo "${_SRC_CHAIN}" | grep -m 1 -E "DefaultPort.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | awk '{ print $1}' )
-    if [[ -z "${DEFAULT_PORT}" ]]
-    then
-      DEFAULT_PORT=$( echo "${_SRC_CHAIN}" | grep -m 1 -E "nP2pPort.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | awk '{ print $1}' )
-    fi
-  fi
-
-  if [[ -z "${TICKER}" ]]
-  then
-    _BITCOINUNITS=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/bitcoinunits.cpp" )
-    if [[ -z "${_BITCOINUNITS}" ]]
-    then
-      _BITCOINUNITS=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/qt/bitcoinunits.cpp" )
-    fi
-    if [[ -z "${_BITCOINUNITS}" ]]
-    then
-      _BITCOINUNITS=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/bitcoinunits.cpp" )
-    fi
-    if [[ -z "${_BITCOINUNITS}" ]]
-    then
-      _BITCOINUNITS=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/qt/bitcoinunits.cpp" )
-    fi
-
-    COIN_NAME=$( echo "${_BITCOINUNITS}" | grep -m 1 "unitlist.append" | grep -o '(.*)' | sed 's/(//g' | sed 's/)//g' | grep -oE '[A-Z0-9]+' | sed 's/^ *//;s/ *$//' )
-    if [[ "${COIN_NAME}" == 'BTC' ]]
-    then
-      COIN_NAME=$( echo "${_BITCOINUNITS}" | grep -m 1 "case BTC: return QString" | grep -o '(.*)' | sed 's/(//g' | sed 's/)//g' | sed 's/^"\(.*\)".*/\1/' | sed 's/^ *//;s/ *$//' | grep -oE '[A-Z0-9]+' )
-    fi
-    if [[ -z "${COIN_NAME}" ]]
-    then
-      COIN_NAME=$( echo "${BIN_BASE}" | tr '[:lower:]' '[:upper:]' )
-    fi
-    TICKER=${COIN_NAME:0:4}
-    TICKER_LOWER=$( echo "${COIN_NAME}" | tr '[:upper:]' '[:lower:]' )
-  fi
-
-  if [[ -z "${DAEMON_NAME}" ]]
-  then
-    _BITCOINGUI=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/qt/bitcoingui.cpp" )
-    if [[ -z "${_BITCOINGUI}" ]]
-    then
-      _BITCOINGUI=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/qt/bitcoingui.cpp" )
-    fi
-    DAEMON_NAME=$( echo "${_BITCOINGUI}" | grep -i -m 1 "windowTitle" | grep -o '(.*)' | sed 's/(//g' | sed 's/)//g' | sed 's/^"\(.*\)".*/\1/' | sed 's/^ *//;s/ *$//' | sed 's/tr"//g' | tr '"\-+' ' ' | awk '{print $1 " " $2}' | sed 's/^ *//;s/ *$//' )
-    if [[ "${DAEMON_NAME}" == 'PACKAGE_NAME' ]]
-    then
-      DAEMON_NAME=$( tr '[:lower:]' '[:upper:]' <<< "${TICKER_LOWER:0:1}" )
-      DAEMON_NAME="${DAEMON_NAME}${TICKER_LOWER:1} ${GITHUB_REPO}"
-    fi
-    if [[ -z "${DAEMON_NAME}" ]]
-    then
-      DAEMON_NAME=$( tr '[:lower:]' '[:upper:]' <<< "${TICKER_LOWER:0:1}" )
-      DAEMON_NAME="${DAEMON_NAME}${BIN_BASE:1} ${GITHUB_REPO}"
-    fi
-  fi
-
-  if [[ -z "${COLLATERAL}" ]]
-  then
-    COLLATERAL=$( echo "${_SRC_CHAIN}" | grep -iE "Collateral.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      COLLATERAL=$( echo "${_SRC_CHAIN}" | grep  -iE "Colleteral.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/activemasternode.cpp" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/activemasternode.cpp" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iF "out.tx->vout[out.i].nValue" | cut -d '=' -f3 | cut -d '*' -f1 | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/masternode.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/masternode.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -m 1 -iE "Collateral.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-      if [[ -z "${COLLATERAL}" ]]
-      then
-       COLLATERAL=$( echo "${_MNINFO}" | grep -m 1 -iE "MASTERNODEAMOUNT.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-      fi
-      if [[ -z "${COLLATERAL}" ]]
-      then
-       COLLATERAL=$( echo "${_MNINFO}" | grep -m 1 -iF "MASTERNODE_COLLATERAL " | grep -o '[0-9]*' )
-      fi
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/smartnode/smartnode.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/smartnode/smartnode.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iE "COIN_REQUIRED.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iE "MNCollateral" | grep -o '{.*}' | grep -Eo '[0-9]+' | tail -n 1 )
-      if [[ -z "${COLLATERAL}" ]]
-      then
-        COLLATERAL=$( echo "${_MNINFO}" | grep -iE "MASTERNODE_COLLATERAL" | grep -Eo '[0-9]+' | tail -n 1 )
-      fi
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/chainparams.cpp" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/chainparams.cpp" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iE "Collateral" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/activeservicenode.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/activeservicenode.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iE "SERVICENODE_REQUIRED_AMOUNT" | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/masternode.cpp" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/masternode.cpp" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iF "if(coin.out.nValue != " | grep -o '[0-9]*' )
-      if [[ -z "${COLLATERAL}" ]]
-      then
-        COLLATERAL=$( echo "${_MNINFO}" | grep -iF "if(coins.vout[vin.prevout.n].nValue != " | grep -o '[0-9]*' )
-      fi
-      if [[ -z "${COLLATERAL}" ]]
-      then
-        COLLATERAL=$( echo "${_MNINFO}" | grep -iF "MASTERNODE_COLLATERAL_HIGH" | grep -o '[0-9]*' )
-      fi
-
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.h" )
-      fi
-      COLLATERAL=$( echo "${MNINFO}" | awk '/GetMstrNodCollateral/ { show=1 } show; /}/ { show=0 }' | tr '\n' ' ' | grep -o '{.*}' | grep -Eo '[0-9]+' | tail -n 1 )
-      if [[ -z "${COLLATERAL}" ]]
-      then
-        COLLATERAL=$( echo "${MNINFO}" | awk '/MasternodeCollateral/ { show=1 } show; /}/ { show=0 }' | tr '\n' ' ' | grep -o '{.*}' | grep -Eo '[0-9]+' | tail -n 1 )
-      fi
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/znode.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/znode.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -m 1 -iE "ZNODE_COIN_REQUIRED.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/bznode.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/bznode.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -m 1 -iE "BZNODE_COIN_REQUIRED.*=.*" | cut -d '=' -f2 | tr ');' ' ' | sed 's/^ *//;s/ *$//' | cut -d '*' -f1 | grep -o '[0-9]*' )
-    fi
-    if [[ -z "${COLLATERAL}" ]]
-    then
-      _MNINFO=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/protocol.h" )
-      if [[ -z "${_MNINFO}" ]]
-      then
-        _MNINFO=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/protocol.h" )
-      fi
-      COLLATERAL=$( echo "${_MNINFO}" | grep -iE "MASTERNODEAMOUNT" | grep -o '[0-9]*' )
-    fi
-
-    COLLATERAL=$( echo "${COLLATERAL}" | head -n 1 )
-  fi
-
-  if [[ -z "${BLOCKTIME}" ]]
-  then
-    _SRC_CHAIN=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/chainparams.cpp" )
-    if [[ -z "${_SRC_CHAIN}" ]]
-    then
-      _SRC_CHAIN=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/chainparams.cpp" )
-    fi
-    BLOCKTIME=$( echo "${_SRC_CHAIN}" | grep -m 1 -E "TargetSpacing[[:space:]]*=.*" )
-    if [[ -z "${BLOCKTIME}" ]]
-    then
-      _SRC_MAIN=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.cpp" )
-      if [[ -z "${_SRC_MAIN}" ]]
-      then
-        _SRC_MAIN=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.cpp" )
-      fi
-      BLOCKTIME=$( echo "${_SRC_MAIN}" | grep -m 1 -E "TargetSpacing[[:space:]]*=.*" )
-    fi
-    if [[ -z "${BLOCKTIME}" ]]
-    then
-      _SRC_MAIN=$( wget -4qO- -o- "${GIT_CDN}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.h" )
-      if [[ -z "${_SRC_MAIN}" ]]
-      then
-        _SRC_MAIN=$( wget -4qO- -o- "${GIT_RAW}${GITHUB_REPO}${GIT_PATH_PREFIX}/master/src/main.h" )
-      fi
-      BLOCKTIME=$( echo "${_SRC_MAIN}" | grep -m 1 -E "TARGET_SPACING[[:space:]]*=.*" )
-    fi
-    BLOCKTIME=$( echo "${BLOCKTIME}" | cut -d ';' -f1 | cut -d '=' -f2 | bc )
-  fi
-fi
-}
-GET_MISSING_COIN_PARAMS
-
 # Daemon Binary.
 if [[ -z "${DAEMON_BIN}" ]]
 then
@@ -511,7 +203,7 @@ fi
 if [[ -z "${DAEMON_PREFIX}" ]]
 then
   # Username Prefix.
-  DAEMON_PREFIX="${TICKER_LOWER:0:4}_${MASTERNODE_PREFIX}"
+  DAEMON_PREFIX="${TICKER_LOWER:0:4}_${GRIDNODE_PREFIX}"
 fi
 if [[ -z "${RPC_USERNAME}" ]]
 then
@@ -531,8 +223,8 @@ then
 fi
 if [[ -z "${DAEMON_SETUP_INFO}" ]]
 then
-  # Masternode output file.
-  DAEMON_SETUP_INFO="${HOME}/${TICKER_LOWER}.${MASTERNODE_PREFIX}.txt"
+  # Gridnode output file.
+  DAEMON_SETUP_INFO="${HOME}/${TICKER_LOWER}.${GRIDNODE_PREFIX}.txt"
 fi
 
 # Cycle Daemon on first start.
@@ -571,11 +263,11 @@ then
   DAEMON_CONNECTIONS=6
 fi
 
-# Wait for MNSYNC.
-if [[ -z "${MNSYNC_WAIT_FOR}" ]]
+# Wait for GNSYNC.
+if [[ -z "${GNSYNC_WAIT_FOR}" ]]
 then
-  #MNSYNC_WAIT_FOR='"RequestedMasternodeAssets": 999,'
-  MNSYNC_WAIT_FOR=''
+  #GNSYNC_WAIT_FOR='"RequestedGridnodeAssets": 999,'
+  GNSYNC_WAIT_FOR=''
 fi
 
 # Run Mini Monitor.
@@ -585,9 +277,9 @@ then
 fi
 
 # Mini Monitor Queue Payouts.
-if [[ -z "${MINI_MONITOR_MN_QUEUE}" ]]
+if [[ -z "${MINI_MONITOR_GN_QUEUE}" ]]
 then
-  MINI_MONITOR_MN_QUEUE=1
+  MINI_MONITOR_GN_QUEUE=1
 fi
 
 # Rate limit explorer.
@@ -646,9 +338,9 @@ then
 fi
 
 # If set to 1 then use blocks n chains from dropbox.
-if [[ -z "${USE_DROPBOX_BLOCKS_N_CHAINS}" ]]
+if [[ -z "${USE_BLOCKS_N_CHAINS}" ]]
 then
-  USE_DROPBOX_BLOCKS_N_CHAINS=1
+  USE_BLOCKS_N_CHAINS=1
 fi
 
 # If set to 1 then use bootstrap from dropbox.
@@ -682,18 +374,18 @@ then
   TOR=0
 fi
 
-NO_MN=0
-if [[ "${ARG1}" == 'NO_MN' ]]
+NO_GN=0
+if [[ "${ARG1}" == 'NO_GN' ]]
 then
-  NO_MN=1
+  NO_GN=1
 fi
 
 if [[ -z "${COLLATERAL}" ]]
 then
-  NO_MN=1
+  NO_GN=1
 fi
 
-rm -f /var/multi-masternode-data/___temp.sh
+rm -f /var/multi-gridnode-data/___temp.sh
 if [[ -r /tmp/___mn.sh ]] && [[ $( stat --format '%a' /tmp/___mn.sh ) -ne 666 ]]
 then
   chmod 666 /tmp/___mn.sh
@@ -754,18 +446,18 @@ DAEMON_DOWNLOAD_EXTRACT () {
     BIN_FILENAME=$( basename "${GITHUB_URL}" | tr -d '\r'  )
     echo "URL: ${GITHUB_URL}"
     stty sane 2>/dev/null
-    wget -4 "${GITHUB_URL}" -O /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" -q --show-progress --progress=bar:force 2>&1
+    wget -4 "${GITHUB_URL}" -O /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" -q --show-progress --progress=bar:force 2>&1
     sleep 0.6
     echo
-    mkdir -p /var/multi-masternode-data/"${PROJECT_DIR}"/src
+    mkdir -p /var/multi-gridnode-data/"${PROJECT_DIR}"/src
     if [[ $( echo "${BIN_FILENAME}" | grep -c '.tar.gz$' ) -eq 1 ]] || [[ $( echo "${BIN_FILENAME}" | grep -c '.tgz$' ) -eq 1 ]]
     then
       echo "Decompressing tar.gz archive."
       if [[ -x "$( command -v pv )" ]]
       then
-        pv "/var/multi-masternode-data/latest-github-releasese/${BIN_FILENAME}" | tar -xz -C /var/multi-masternode-data/"${PROJECT_DIR}"/src 2>&1
+        pv "/var/multi-gridnode-data/latest-github-releasese/${BIN_FILENAME}" | tar -xz -C /var/multi-gridnode-data/"${PROJECT_DIR}"/src 2>&1
       else
-       tar -xzf /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" -C /var/multi-masternode-data/"${PROJECT_DIR}"/src
+       tar -xzf /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" -C /var/multi-gridnode-data/"${PROJECT_DIR}"/src
       fi
 
     elif [[ $( echo "${BIN_FILENAME}" | grep -c '.tar.xz$' ) -eq 1 ]]
@@ -773,105 +465,105 @@ DAEMON_DOWNLOAD_EXTRACT () {
       echo "Decompressing tar.xz archive."
      if [[ -x "$( command -v pv )" ]]
      then
-       pv "/var/multi-masternode-data/latest-github-releasese/${BIN_FILENAME}" | tar -xJ -C /var/multi-masternode-data/"${PROJECT_DIR}"/src 2>&1
+       pv "/var/multi-gridnode-data/latest-github-releasese/${BIN_FILENAME}" | tar -xJ -C /var/multi-gridnode-data/"${PROJECT_DIR}"/src 2>&1
      else
-        tar -xJf /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" -C /var/multi-masternode-data/"${PROJECT_DIR}"/src
+        tar -xJf /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" -C /var/multi-gridnode-data/"${PROJECT_DIR}"/src
      fi
 
     elif [[ $( echo "${BIN_FILENAME}" | grep -c '.zip$' ) -eq 1 ]]
     then
       echo "Unzipping file."
-      unzip -o /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" -d /var/multi-masternode-data/"${PROJECT_DIR}"/src/
+      unzip -o /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" -d /var/multi-gridnode-data/"${PROJECT_DIR}"/src/
 
     elif [[ $( echo "${BIN_FILENAME}" | grep -c '.deb$' ) -eq 1 ]]
     then
       echo "Installing deb package."
-      sudo -n dpkg --install /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}"
+      sudo -n dpkg --install /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}"
       echo "Extracting deb package."
-      dpkg -x /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" /var/multi-masternode-data/"${PROJECT_DIR}"/src/
+      dpkg -x /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" /var/multi-gridnode-data/"${PROJECT_DIR}"/src/
 
     elif [[ $( echo "${BIN_FILENAME}" | grep -c '.gz$' ) -eq 1 ]]
     then
       echo "Decompressing gz archive."
-      mv /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" /var/multi-masternode-data/"${PROJECT_DIR}"/src/"${BIN_FILENAME}"
-      gunzip /var/multi-masternode-data/"${PROJECT_DIR}"/src/"${BIN_FILENAME}"
+      mv /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" /var/multi-gridnode-data/"${PROJECT_DIR}"/src/"${BIN_FILENAME}"
+      gunzip /var/multi-gridnode-data/"${PROJECT_DIR}"/src/"${BIN_FILENAME}"
 
     else
       echo "Copying over."
-      mv /var/multi-masternode-data/latest-github-releasese/"${BIN_FILENAME}" /var/multi-masternode-data/"${PROJECT_DIR}"/src/
+      mv /var/multi-gridnode-data/latest-github-releasese/"${BIN_FILENAME}" /var/multi-gridnode-data/"${PROJECT_DIR}"/src/
     fi
 
     cd ~/ || return 1 2>/dev/null
-    find /var/multi-masternode-data/"${PROJECT_DIR}"/src/ -name "$DAEMON_BIN" -size +128k 2>/dev/null
-    find /var/multi-masternode-data/"${PROJECT_DIR}"/src/ -name "$DAEMON_BIN" -size +128k -exec cp {} /var/multi-masternode-data/"${PROJECT_DIR}"/src/  \; 2>/dev/null
-    find /var/multi-masternode-data/"${PROJECT_DIR}"/src/ -name "$CONTROLLER_BIN" -size +128k 2>/dev/null
-    find /var/multi-masternode-data/"${PROJECT_DIR}"/src/ -name "$CONTROLLER_BIN" -size +128k -exec cp {} /var/multi-masternode-data/"${PROJECT_DIR}"/src/  \; 2>/dev/null
+    find /var/multi-gridnode-data/"${PROJECT_DIR}"/src/ -name "$DAEMON_BIN" -size +128k 2>/dev/null
+    find /var/multi-gridnode-data/"${PROJECT_DIR}"/src/ -name "$DAEMON_BIN" -size +128k -exec cp {} /var/multi-gridnode-data/"${PROJECT_DIR}"/src/  \; 2>/dev/null
+    find /var/multi-gridnode-data/"${PROJECT_DIR}"/src/ -name "$CONTROLLER_BIN" -size +128k 2>/dev/null
+    find /var/multi-gridnode-data/"${PROJECT_DIR}"/src/ -name "$CONTROLLER_BIN" -size +128k -exec cp {} /var/multi-gridnode-data/"${PROJECT_DIR}"/src/  \; 2>/dev/null
 
-    if [[ -s "/var/multi-masternode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" ]] && \
+    if [[ -s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" ]] && \
       [[ "${BIN_FILENAME}" == ${DAEMON_BIN}* ]] && \
-      [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" | grep -ciF 'not a dynamic executable' ) -eq 0 ]]
+      [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" | grep -ciF 'not a dynamic executable' ) -eq 0 ]]
     then
       echo "Renaming ${BIN_FILENAME} to ${DAEMON_BIN}"
-      mv "/var/multi-masternode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+      mv "/var/multi-gridnode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
     fi
-    if [[ -s "/var/multi-masternode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" ]] && \
+    if [[ -s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" ]] && \
       [[ "${BIN_FILENAME}" == ${CONTROLLER_BIN}* ]] && \
-      [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" | grep -ciF 'not a dynamic executable' ) -eq 0 ]]
+      [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" | grep -ciF 'not a dynamic executable' ) -eq 0 ]]
     then
       echo "Renaming ${BIN_FILENAME} to ${CONTROLLER_BIN}"
-      mv "/var/multi-masternode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+      mv "/var/multi-gridnode-data/${PROJECT_DIR}/src/${BIN_FILENAME}" "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
     fi
 
-    if [[ -s "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]]
+    if [[ -s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]]
     then
       echo "Setting executable bit for daemon ${DAEMON_BIN}"
-      echo "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
-      sudo -n chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" 2>/dev/null
-      chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" 2>/dev/null
-      if [[ $( timeout --foreground --signal=SIGKILL 3s ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | wc -l ) -gt 2 ]]
+      echo "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+      sudo -n chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" 2>/dev/null
+      chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" 2>/dev/null
+      if [[ $( timeout --foreground --signal=SIGKILL 3s ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | wc -l ) -gt 2 ]]
       then
         if [[ "${UBUNTU_VERSION}" == 16.* ]] && \
-          [[ $( timeout --foreground --signal=SIGKILL 3s ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cE 'libboost.*1.65' ) -gt 0 ]]
+          [[ $( timeout --foreground --signal=SIGKILL 3s ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cE 'libboost.*1.65' ) -gt 0 ]]
         then
           echo "ldd has wrong libboost version 1.65"
-          rm "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
-        elif [[ $( timeout --foreground --signal=SIGKILL 3s ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cE 'libboost.*1.54' ) -gt 0 ]]
+          rm "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+        elif [[ $( timeout --foreground --signal=SIGKILL 3s ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cE 'libboost.*1.54' ) -gt 0 ]]
         then
           echo "ldd has wrong libboost version 1.54"
-          rm "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+          rm "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
         else
           echo "Good"
           FOUND_DAEMON=1
         fi
       else
         echo "ldd failed."
-        rm "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+        rm "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
       fi
     fi
-    if [[ -s "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]]
+    if [[ -s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]]
     then
       echo "Setting executable bit for controller ${CONTROLLER_BIN}"
-      echo "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
-      sudo -n chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" 2>/dev/null
-      chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" 2>/dev/null
-      if [[ $( timeout --signal=SIGKILL 1s ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | wc -l ) -gt 2 ]]
+      echo "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+      sudo -n chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" 2>/dev/null
+      chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" 2>/dev/null
+      if [[ $( timeout --signal=SIGKILL 1s ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | wc -l ) -gt 2 ]]
       then
         if [[ "${UBUNTU_VERSION}" == 16.* ]] && \
-          [[ $( timeout --signal=SIGKILL 1s ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cE 'libboost.*1.65' ) -gt 0 ]]
+          [[ $( timeout --signal=SIGKILL 1s ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cE 'libboost.*1.65' ) -gt 0 ]]
         then
           echo "ldd has wrong libboost version 1.65"
-          rm "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
-        elif [[ $( timeout --signal=SIGKILL 1s ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cE 'libboost.*1.54' ) -gt 0 ]]
+          rm "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+        elif [[ $( timeout --signal=SIGKILL 1s ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cE 'libboost.*1.54' ) -gt 0 ]]
         then
           echo "ldd has wrong libboost version 1.54"
-          rm "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+          rm "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
         else
           echo "Good"
           FOUND_CLI=1
         fi
       else
         echo "ldd failed."
-        rm "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+        rm "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
       fi
     fi
 
@@ -908,7 +600,7 @@ DAEMON_DOWNLOAD_SUPER () {
   RELEASE_TAG='latest'
   if [[ ! -z "${4}" ]] && [[ "${4}" != 'force' ]] && [[ "${4}" != 'force_skip_download' ]]
   then
-    rm "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json"
+    rm "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json"
     RELEASE_TAG=${4}
   fi
 
@@ -917,13 +609,13 @@ DAEMON_DOWNLOAD_SUPER () {
     return 1 2>/dev/null
   fi
   echo "Checking ${REPO} for the latest version"
-  if [[ ! -d /var/multi-masternode-data/latest-github-releasese ]]
+  if [[ ! -d /var/multi-gridnode-data/latest-github-releasese ]]
   then
-    sudo -n mkdir -p /var/multi-masternode-data/latest-github-releasese
-    sudo -n chmod -R a+rw /var/multi-masternode-data/
+    sudo -n mkdir -p /var/multi-gridnode-data/latest-github-releasese
+    sudo -n chmod -R a+rw /var/multi-gridnode-data/
   fi
-  mkdir -p /var/multi-masternode-data/latest-github-releasese 2>/dev/null
-  chmod -R a+rw /var/multi-masternode-data/ 2>/dev/null
+  mkdir -p /var/multi-gridnode-data/latest-github-releasese 2>/dev/null
+  chmod -R a+rw /var/multi-gridnode-data/ 2>/dev/null
   PROJECT_DIR=$( echo "${REPO}" | tr '/' '_' )
 
   DAEMON_BIN="${BIN_BASE}d"
@@ -942,58 +634,58 @@ DAEMON_DOWNLOAD_SUPER () {
   if [[ -z "${DAEMON_DOWNLOAD_URL}" ]]
   then
     TIMESTAMP=9999
-    if [[ -s "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json" ]]
+    if [[ -s "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json" ]]
     then
       # Get timestamp.
-      TIMESTAMP=$( stat -c %Y "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json" )
+      TIMESTAMP=$( stat -c %Y "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json" )
     fi
     echo "Downloading ${RELEASE_TAG} release info from github."
-    curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases/${RELEASE_TAG}" -z "$( date --rfc-2822 -d "@${TIMESTAMP}" )" -o "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json"
+    curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases/${RELEASE_TAG}" -z "$( date --rfc-2822 -d "@${TIMESTAMP}" )" -o "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json"
 
-    LATEST=$( cat "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json" )
+    LATEST=$( cat "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json" )
     if [[ $( echo "${LATEST}" | grep -c 'browser_download_url' ) -eq 0 ]]
     then
       echo "Downloading ${RELEASE_TAG} release info from github."
-      curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases/${RELEASE_TAG}" -o "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json"
-      LATEST=$( cat "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json" )
+      curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases/${RELEASE_TAG}" -o "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json"
+      LATEST=$( cat "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json" )
     fi
     if [[ $( echo "${LATEST}" | grep -c 'browser_download_url' ) -eq 0 ]]
     then
       FILENAME_RELEASES=$( echo "${REPO}-releases" | tr '/' '_' )
       TIMESTAMP_RELEASES=9999
-      if [[ -s /var/multi-masternode-data/latest-github-releasese/"${FILENAME_RELEASES}".json ]]
+      if [[ -s /var/multi-gridnode-data/latest-github-releasese/"${FILENAME_RELEASES}".json ]]
       then
         # Get timestamp.
-        TIMESTAMP_RELEASES=$( stat -c %Y /var/multi-masternode-data/latest-github-releasese/"${FILENAME_RELEASES}".json )
+        TIMESTAMP_RELEASES=$( stat -c %Y /var/multi-gridnode-data/latest-github-releasese/"${FILENAME_RELEASES}".json )
       fi
       echo "Downloading all releases from github."
-      curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases" -z "$( date --rfc-2822 -d "@${TIMESTAMP_RELEASES}" )" -o "/var/multi-masternode-data/latest-github-releasese/${FILENAME_RELEASES}.json"
-      RELEASE_ID=$( jq '.[].id' < "/var/multi-masternode-data/latest-github-releasese/${FILENAME_RELEASES}.json" )
+      curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases" -z "$( date --rfc-2822 -d "@${TIMESTAMP_RELEASES}" )" -o "/var/multi-gridnode-data/latest-github-releasese/${FILENAME_RELEASES}.json"
+      RELEASE_ID=$( jq '.[].id' < "/var/multi-gridnode-data/latest-github-releasese/${FILENAME_RELEASES}.json" )
       echo "Downloading latest release info from github."
-      curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases/${RELEASE_ID}" -o "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json"
-      LATEST=$( cat "/var/multi-masternode-data/latest-github-releasese/${FILENAME}.json" )
+      curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases/${RELEASE_ID}" -o "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json"
+      LATEST=$( cat "/var/multi-gridnode-data/latest-github-releasese/${FILENAME}.json" )
     fi
 
     VERSION_REMOTE=$( echo "${LATEST}" | jq -r '.tag_name' | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
     echo "Remote version: ${VERSION_REMOTE}"
-    if [[ -s "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]] && \
-      [[ -s "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]] && \
+    if [[ -s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]] && \
+      [[ -s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]] && \
       [[ $( echo "${CONTROLLER_BIN}" | grep -cE "cli$" ) -gt 0 ]]
     then
       # Set executable bit.
       if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
       then
-        sudo chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
-        sudo chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+        sudo chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+        sudo chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
       else
-        chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
-        chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+        chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+        chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
       fi
 
-      VERSION_LOCAL=$( timeout --signal=SIGKILL 9s "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
+      VERSION_LOCAL=$( timeout --signal=SIGKILL 9s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
       if [[ -z "${VERSION_LOCAL}" ]]
       then
-        VERSION_LOCAL=$( timeout --signal=SIGKILL 9s "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" -version 2>/dev/null | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
+        VERSION_LOCAL=$( timeout --signal=SIGKILL 9s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" -version 2>/dev/null | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
       fi
 
       echo "Local version: ${VERSION_LOCAL}"
@@ -1056,7 +748,7 @@ DAEMON_DOWNLOAD_SUPER () {
     echo
   else
     echo "Removing old files."
-    rm -rf /var/multi-masternode-data/"${PROJECT_DIR}"/src/
+    rm -rf /var/multi-gridnode-data/"${PROJECT_DIR}"/src/
     echo "Downloading latest release from github."
 
     DAEMON_DOWNLOAD_EXTRACT_OUTPUT=$( DAEMON_DOWNLOAD_EXTRACT "${PROJECT_DIR}" "${DAEMON_BIN}" "${CONTROLLER_BIN}" "${DAEMON_DOWNLOAD_URL}" )
@@ -1064,24 +756,24 @@ DAEMON_DOWNLOAD_SUPER () {
   fi
 
   if [[ -z "${DAEMON_DOWNLOAD_URL}" ]] || \
-    [[ ! -f "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]] || \
-    [[ ! -f "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]] || \
+    [[ ! -f "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]] || \
+    [[ ! -f "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]] || \
     [[ $( echo "${DAEMON_DOWNLOAD_EXTRACT_OUTPUT}" | grep -c "executable bit for daemon" ) -eq 0 ]] || \
     [[ $( echo "${DAEMON_DOWNLOAD_EXTRACT_OUTPUT}" | grep -c "executable bit for controller" ) -eq 0 ]]
   then
     FILENAME_RELEASES=$( echo "${REPO}-releases" | tr '/' '_' )
     TIMESTAMP_RELEASES=9999
-    if [[ -s /var/multi-masternode-data/latest-github-releasese/"${FILENAME_RELEASES}".json ]]
+    if [[ -s /var/multi-gridnode-data/latest-github-releasese/"${FILENAME_RELEASES}".json ]]
     then
       # Get timestamp.
-      TIMESTAMP_RELEASES=$( stat -c %Y /var/multi-masternode-data/latest-github-releasese/"${FILENAME_RELEASES}".json )
+      TIMESTAMP_RELEASES=$( stat -c %Y /var/multi-gridnode-data/latest-github-releasese/"${FILENAME_RELEASES}".json )
     fi
     echo "Downloading all releases from github."
-    rm -rf /var/multi-masternode-data/"${PROJECT_DIR}"/src/
-    curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases" -z "$( date --rfc-2822 -d "@${TIMESTAMP_RELEASES}" )" -o "/var/multi-masternode-data/latest-github-releasese/${FILENAME_RELEASES}.json"
+    rm -rf /var/multi-gridnode-data/"${PROJECT_DIR}"/src/
+    curl -sL --max-time 10 "https://api.github.com/repos/${REPO}/releases" -z "$( date --rfc-2822 -d "@${TIMESTAMP_RELEASES}" )" -o "/var/multi-gridnode-data/latest-github-releasese/${FILENAME_RELEASES}.json"
 
-    DAEMON_DOWNLOAD_URL_ALL=$( jq -r '.[].assets[].browser_download_url' < "/var/multi-masternode-data/latest-github-releasese/${FILENAME_RELEASES}.json" )
-    DAEMON_DOWNLOAD_URL_ALL_BODY=$( jq -r '.[].body' < "/var/multi-masternode-data/latest-github-releasese/${FILENAME_RELEASES}.json" )
+    DAEMON_DOWNLOAD_URL_ALL=$( jq -r '.[].assets[].browser_download_url' < "/var/multi-gridnode-data/latest-github-releasese/${FILENAME_RELEASES}.json" )
+    DAEMON_DOWNLOAD_URL_ALL_BODY=$( jq -r '.[].body' < "/var/multi-gridnode-data/latest-github-releasese/${FILENAME_RELEASES}.json" )
     DAEMON_DOWNLOAD_URL_ALL_BODY=$( echo "${DAEMON_DOWNLOAD_URL_ALL_BODY}" | grep -Eo '(https?://[^ ]+)' | tr -d ')' | tr -d '(' | tr -d '\r' )
     DAEMON_DOWNLOAD_URL=$( echo "${DAEMON_DOWNLOAD_URL_ALL}" | grep -iv 'win' | grep -iv 'arm-RPi' | grep -iv '\-qt' | grep -iv 'raspbian' | grep -v '.dmg$' | grep -v '.exe$' | grep -v '.sh$' | grep -v '.pdf$' | grep -v '.sig$' | grep -v '.asc$' | grep -iv 'MacOS' | grep -iv 'HighSierra' | grep -iv 'arm' )
     if [[ -z "${DAEMON_DOWNLOAD_URL}" ]]
@@ -1097,11 +789,11 @@ DAEMON_DOWNLOAD_SUPER () {
   fi
   if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
   then
-    sudo -n sh -c "find /var/multi-masternode-data/ -type f -exec chmod 666 {} \\;"
-    sudo -n sh -c "find /var/multi-masternode-data/ -type d -exec chmod 777 {} \\;"
+    sudo -n sh -c "find /var/multi-gridnode-data/ -type f -exec chmod 666 {} \\;"
+    sudo -n sh -c "find /var/multi-gridnode-data/ -type d -exec chmod 777 {} \\;"
   else
-    find "/var/multi-masternode-data/" -type f -exec chmod 666 {} \;
-    find "/var/multi-masternode-data/" -type d -exec chmod 777 {} \;
+    find "/var/multi-gridnode-data/" -type f -exec chmod 666 {} \;
+    find "/var/multi-gridnode-data/" -type d -exec chmod 777 {} \;
   fi
 }
 
@@ -1153,31 +845,31 @@ CHECK_COLLATERAL_INDEX () {
   TEMP_FILE=${6}
 
   # Make sure collateral is still valid.
-  MN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq -r ".vout[] | select( (.n)|tonumber == ${OUTPUTIDX} )" 2>/dev/null )
-  if [[ -z "${MN_WALLET_ADDR}" ]]
+  GN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq -r ".vout[] | select( (.n)|tonumber == ${OUTPUTIDX} )" 2>/dev/null )
+  if [[ -z "${GN_WALLET_ADDR}" ]]
   then
-    MN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq ".outputs | to_entries[] | select( (.key)|tonumber == ${OUTPUTIDX} ) | .value" 2>/dev/null )
+    GN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq ".outputs | to_entries[] | select( (.key)|tonumber == ${OUTPUTIDX} ) | .value" 2>/dev/null )
   fi
-  MN_WALLET_ADDR_ALT=$( echo "${MN_WALLET_ADDR}" | jq -r '.scriptpubkey.addresses | .[]' 2>/dev/null | grep -vE '^null$' | sed 's/^ *//; s/ *$//; /^$/d' )
-  if [[ -z "${MN_WALLET_ADDR_ALT}" ]]
+  GN_WALLET_ADDR_ALT=$( echo "${GN_WALLET_ADDR}" | jq -r '.scriptpubkey.addresses | .[]' 2>/dev/null | grep -vE '^null$' | sed 's/^ *//; s/ *$//; /^$/d' )
+  if [[ -z "${GN_WALLET_ADDR_ALT}" ]]
   then
-    MN_WALLET_ADDR_ALT=$( echo "${MN_WALLET_ADDR}" | jq -r '.address' 2>/dev/null | grep -vE '^null$' | sed 's/^ *//; s/ *$//; /^$/d' )
+    GN_WALLET_ADDR_ALT=$( echo "${GN_WALLET_ADDR}" | jq -r '.address' 2>/dev/null | grep -vE '^null$' | sed 's/^ *//; s/ *$//; /^$/d' )
   fi
-  if [[ -z "${MN_WALLET_ADDR_ALT}" ]]
+  if [[ -z "${GN_WALLET_ADDR_ALT}" ]]
   then
-    MN_WALLET_ADDR_ALT=$( echo "${MN_WALLET_ADDR}" | jq -r '.addr' 2>/dev/null | grep -vE '^null$' | sed 's/^ *//; s/ *$//; /^$/d' )
+    GN_WALLET_ADDR_ALT=$( echo "${GN_WALLET_ADDR}" | jq -r '.addr' 2>/dev/null | grep -vE '^null$' | sed 's/^ *//; s/ *$//; /^$/d' )
   fi
-  MN_WALLET_ADDR="${MN_WALLET_ADDR_ALT}"
+  GN_WALLET_ADDR="${GN_WALLET_ADDR_ALT}"
   # Get correct upper/lower case for the address.
-  MN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | jq '.' | grep -io -m 1 "${MN_WALLET_ADDR}" )
+  GN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | jq '.' | grep -io -m 1 "${GN_WALLET_ADDR}" )
 
   OUTPUTIDX_CONFIRMS=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq '.confirmations' 2>/dev/null )
-  MN_WALLET_ADDR_BALANCE=''
+  GN_WALLET_ADDR_BALANCE=''
 
   if [[ "${EXPLORER_URL}" == https://www.coinexplorer.net/api/v1/* ]]
   then
-    MN_WALLET_ADDR_UNSPENT=$( wget -4qO- -T 15 -t 2 -o- "${EXPLORER_URL}address/unspent?address=${MN_WALLET_ADDR}" "${BAD_SSL_HACK}" | jq -r ".result[] | select( .txid == \"${TXHASH}\" ) | .time" 2>/dev/null )
-    if [[ ! -z "${MN_WALLET_ADDR_UNSPENT}" ]]
+    GN_WALLET_ADDR_UNSPENT=$( wget -4qO- -T 15 -t 2 -o- "${EXPLORER_URL}address/unspent?address=${GN_WALLET_ADDR}" "${BAD_SSL_HACK}" | jq -r ".result[] | select( .txid == \"${TXHASH}\" ) | .time" 2>/dev/null )
+    if [[ ! -z "${GN_WALLET_ADDR_UNSPENT}" ]]
     then
       echo "${OUTPUTIDX}"
       return
@@ -1186,37 +878,37 @@ CHECK_COLLATERAL_INDEX () {
       return 1
     fi
   else
-    MN_WALLET_ADDR_DETAILS=$( wget -4qO- -T 15 -t 2 -o- "${EXPLORER_URL}${EXPLORER_GETADDRESS_PATH}${MN_WALLET_ADDR}" "${BAD_SSL_HACK}"  )
+    GN_WALLET_ADDR_DETAILS=$( wget -4qO- -T 15 -t 2 -o- "${EXPLORER_URL}${EXPLORER_GETADDRESS_PATH}${GN_WALLET_ADDR}" "${BAD_SSL_HACK}"  )
   fi
   sleep "${EXPLORER_SLEEP}"
-  echo "${MN_WALLET_ADDR_DETAILS}" > "${TEMP_FILE}.${OUTPUTIDX}"
+  echo "${GN_WALLET_ADDR_DETAILS}" > "${TEMP_FILE}.${OUTPUTIDX}"
 
   ( echo "Getting info about the wallet address." >/dev/tty ) 2>/dev/null
-  ( echo "${EXPLORER_URL}${EXPLORER_GETADDRESS_PATH}${MN_WALLET_ADDR}" >/dev/tty ) 2>/dev/null
+  ( echo "${EXPLORER_URL}${EXPLORER_GETADDRESS_PATH}${GN_WALLET_ADDR}" >/dev/tty ) 2>/dev/null
 
   # Get address balance.
-  if [[ -z "${MN_WALLET_ADDR_BALANCE}" ]]
+  if [[ -z "${GN_WALLET_ADDR_BALANCE}" ]]
   then
-    MN_WALLET_ADDR_BALANCE=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".balance" 2>/dev/null )
-    if [[ ! "${MN_WALLET_ADDR_BALANCE}" =~ $RE_FLOAT ]]
+    GN_WALLET_ADDR_BALANCE=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".balance" 2>/dev/null )
+    if [[ ! "${GN_WALLET_ADDR_BALANCE}" =~ $RE_FLOAT ]]
     then
-      MN_WALLET_ADDR_BALANCE=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".data" 2>/dev/null )
+      GN_WALLET_ADDR_BALANCE=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".data" 2>/dev/null )
     fi
-    if [[ ! "${MN_WALLET_ADDR_BALANCE}" =~ $RE_FLOAT ]]
+    if [[ ! "${GN_WALLET_ADDR_BALANCE}" =~ $RE_FLOAT ]]
     then
-      MN_WALLET_ADDR_BALANCE=${MN_WALLET_ADDR_DETAILS}
+      GN_WALLET_ADDR_BALANCE=${GN_WALLET_ADDR_DETAILS}
     fi
   fi
 
-  if [[ "${MN_WALLET_ADDR_BALANCE}" == "null" ]] && [[ "${OUTPUTIDX_CONFIRMS}" -lt 10 ]]
+  if [[ "${GN_WALLET_ADDR_BALANCE}" == "null" ]] && [[ "${OUTPUTIDX_CONFIRMS}" -lt 10 ]]
   then
     echo "${OUTPUTIDX}"
     return
   fi
-  MN_WALLET_ADDR_BALANCE=$( echo "${MN_WALLET_ADDR_BALANCE} / ${EXPLORER_AMOUNT_ADJUST}" | bc )
+  GN_WALLET_ADDR_BALANCE=$( echo "${GN_WALLET_ADDR_BALANCE} / ${EXPLORER_AMOUNT_ADJUST}" | bc )
   while read -r COLLATERAL_LEVEL
   do
-    if [[ $( echo "${MN_WALLET_ADDR_BALANCE}>=${COLLATERAL_LEVEL}" | bc ) -eq 1 ]]
+    if [[ $( echo "${GN_WALLET_ADDR_BALANCE}>=${COLLATERAL_LEVEL}" | bc ) -eq 1 ]]
     then
       echo "${OUTPUTIDX}"
       return
@@ -2061,7 +1753,7 @@ BAD_SSL_HACK='--no-check-certificate'
     EXTRA_CONFIG_GEN=$( echo -e "${EXTRA_CONFIG_GEN}\\nSENTINEL_CONF_START='${SENTINEL_CONF_START}'" )
   fi
 
-MN_DAEMON_FILE=$( cat << MN_DAEMON_FILE
+GN_DAEMON_FILE=$( cat << GN_DAEMON_FILE
 #!/bin/bash
 # shellcheck disable=SC2034
 
@@ -2115,7 +1807,7 @@ DROPBOX_ADDNODES=''
 # Dropbox Bootstrap.
 DROPBOX_BOOTSTRAP=''
 # Dropbox blocks and chainstake folders.
-DROPBOX_BLOCKS_N_CHAINS=''
+BLOCKS_N_CHAINS=''
 
 ASCII_ART () {
 echo -e "\\e[0m"
@@ -2136,7 +1828,7 @@ while [[ ! -f ~/___mn.sh ]] || [[ \$( grep -Fxc "# End of masternode setup scrip
 do
   rm -f ~/___mn.sh
   echo "Downloading Masternode Setup Script."
-  wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O ~/___mn.sh
+  wget -4qo- raw.githubusercontent.com/unigrid-project/gridnode-setup/master/gridnode.sh -O ~/___mn.sh
   COUNTER=$((COUNTER+1))
   if [[ "\${COUNTER}" -gt 3 ]]
   then
@@ -2162,13 +1854,13 @@ DAEMON_SETUP_THREAD
 . ~/.bashrc
 stty sane 2>/dev/null
 
-MN_DAEMON_FILE
+GN_DAEMON_FILE
 )
 
   if [[ ! -f "/root/${BIN_BASE_LOWER}d.sh" ]]
   then
     {
-      echo "${MN_DAEMON_FILE}"; echo ""
+      echo "${GN_DAEMON_FILE}"; echo ""
     } >> "/root/${BIN_BASE_LOWER}d.sh"
   fi
 
@@ -2210,7 +1902,7 @@ ADD_APPARMOR_CONF () {
 
   if [[ -z "${APPARMOR_CONF_SYSTEMD}" ]]
   then
-    APPARMOR_CONF_SYSTEMD="/etc/apparmor.d/multi-masternode-data"
+    APPARMOR_CONF_SYSTEMD="/etc/apparmor.d/multi-gridnode-data"
   fi
 
   if [[ ! -f "${APPARMOR_CONF_SYSTEMD}" ]]
@@ -2416,15 +2108,15 @@ SENTINEL_GENERIC_SETUP () {
   then
     # shellcheck disable=SC1090
     source "${HOME}/.bashrc"
-    if [[ -f /var/multi-masternode-data/.bashrc ]]
+    if [[ -f /var/multi-gridnode-data/.bashrc ]]
     then
       # shellcheck disable=SC1091
-      source /var/multi-masternode-data/.bashrc
+      source /var/multi-gridnode-data/.bashrc
     fi
-    if [[ -f /var/multi-masternode-data/___temp.sh ]]
+    if [[ -f /var/multi-gridnode-data/___temp.sh ]]
     then
       # shellcheck disable=SC1091
-      source /var/multi-masternode-data/___temp.sh
+      source /var/multi-gridnode-data/___temp.sh
     fi
 
     CONF_LOCATION=$( ${USRNAME} conf loc )
@@ -2506,12 +2198,12 @@ then
         continue
       fi
 
-      MN_USRNAME=$( basename "${USR_HOME_DIR}" )
-      if [ "$( type "${MN_USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -gt 0 ]
+      GN_USRNAME=$( basename "${USR_HOME_DIR}" )
+      if [ "$( type "${GN_USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -gt 0 ]
       then
-        if [[ $( "${MN_USRNAME}" cli ) == "${CONTROLLER_BIN}" ]]
+        if [[ $( "${GN_USRNAME}" cli ) == "${CONTROLLER_BIN}" ]]
         then
-          CONF_LOCATIONS=$( "${MN_USRNAME}" conf loc )
+          CONF_LOCATIONS=$( "${GN_USRNAME}" conf loc )
         else
           CONF_LOCATIONS=''
         fi
@@ -2695,7 +2387,7 @@ CHECK_SYSTEM () {
     sudo DEBIAN_FRONTEND=noninteractive apt -y autoremove
     WAIT_FOR_APT_GET
     sudo DEBIAN_FRONTEND=noninteractive apt-get clean
-    rm -R -- /var/multi-masternode-data/*/
+    rm -R -- /var/multi-gridnode-data/*/
 
     FREEPSPACE_ALL=$( df -P . | tail -1 | awk '{print $4}' )
     FREEPSPACE_BOOT=$( df -P /boot | tail -1 | awk '{print $4}' )
@@ -2723,13 +2415,13 @@ CHECK_SYSTEM () {
     then
       echo "Free Swap Space: ${SWAP_FREE} kb"
       echo
-      echo "This linux box may not have enough resources to run a ${MASTERNODE_NAME} daemon."
+      echo "This linux box may not have enough resources to run a ${GRIDNODE_NAME} daemon."
       echo "If I were you I'd get a better linux box."
       echo "ctrl-c to exit this script."
       echo
       read -r -t 10 -p "Hit ENTER to continue or wait 10 seconds" 2>&1
     else
-      echo "Note: This linux box may not have enough free memory to run a ${MASTERNODE_NAME} daemon."
+      echo "Note: This linux box may not have enough free memory to run a ${GRIDNODE_NAME} daemon."
       read -r -t 5 -p "Hit ENTER to continue or wait 5 seconds" 2>&1
     fi
     echo
@@ -2880,7 +2572,7 @@ INITIAL_PROGRAMS () {
 
   COUNTER=0
   DAEMON_DOWNLOAD_SUPER "${GITHUB_REPO}" "${BIN_BASE}" "${DAEMON_DOWNLOAD}"
-  while [[ ! -f "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]]
+  while [[ ! -f "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ]]
   do
     DAEMON_DOWNLOAD_SUPER "${GITHUB_REPO}" "${BIN_BASE}" "${DAEMON_DOWNLOAD}"
     echo -e "\\r\\c"
@@ -2893,7 +2585,7 @@ INITIAL_PROGRAMS () {
 
   WAIT_FOR_APT_GET
   sudo dpkg --configure -a
-  if [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
+  if [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
   then
     # Add in 16.04 repo.
     COUNTER=0
@@ -2956,13 +2648,13 @@ INITIAL_PROGRAMS () {
       libdb4.8++-dev
   fi
 
-  if [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
+  if [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
   then
     WAIT_FOR_APT_GET
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq libdb5.3++-dev
   fi
 
-  if [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
+  if [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
   then
     WAIT_FOR_APT_GET
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq \
@@ -3088,36 +2780,36 @@ UBUNTU_SECURITY_PACKAGES
 }
 
 USER_FUNCTION_FOR_MASTERNODE () {
-# Create function that can control the new masternode daemon.
-_MN_DAEMON_FUNC=$( cat << MN_DAEMON_FUNC
+# Create function that can control the new gridnode daemon.
+_GN_DAEMON_FUNC=$( cat << GN_DAEMON_FUNC
 # Start of function for ${1}.
 ${1} () {
-  _masternode_dameon_2 "${1}" "${CONTROLLER_BIN}" "${EXPLORER_URL}" "${DAEMON_BIN}" "/home/${1}/${DIRECTORY}/${CONF}" "${BAD_SSL_HACK}" "-1" "-1" "\${1}" "\${2}" "\${3}" "\${4}" "\${5}" "\${6}" "\${7}" "\${8}" "\${9}"
+  _gridnode_dameon_2 "${1}" "${CONTROLLER_BIN}" "${EXPLORER_URL}" "${DAEMON_BIN}" "/home/${1}/${DIRECTORY}/${CONF}" "${BAD_SSL_HACK}" "-1" "-1" "\${1}" "\${2}" "\${3}" "\${4}" "\${5}" "\${6}" "\${7}" "\${8}" "\${9}"
 }
-complete -F _masternode_dameon_2_completions ${1}
+complete -F _gridnode_dameon_2_completions ${1}
 # End of function for ${1}.
-MN_DAEMON_FUNC
+GN_DAEMON_FUNC
 )
-UPDATE_USER_FILE "${_MN_DAEMON_FUNC}" "${1}" "${2}" "${3}"
+UPDATE_USER_FILE "${_GN_DAEMON_FUNC}" "${1}" "${2}" "${3}"
 }
 
-USER_FUNCTION_FOR_MN_CLI () {
+USER_FUNCTION_FOR_GN_CLI () {
 CONF=${1}
 CONTROLLER_BIN=${2}
 DAEMON_BIN=${3}
 EXPLORER_URL=${4}
 BAD_SSL_HACK=${5}
-# Create function that can control the new masternode daemon.
-_MN_DAEMON_FUNC=$( cat << MN_DAEMON_FUNC_CLI
+# Create function that can control the new gridnode daemon.
+_GN_DAEMON_FUNC=$( cat << GN_DAEMON_FUNC_CLI
 # Start of function for ${CONTROLLER_BIN}.
 function ${CONTROLLER_BIN} () {
   _daemon_mn_run "${CONF}" "${CONTROLLER_BIN}" "${DAEMON_BIN}" "${EXPLORER_URL}" "${BAD_SSL_HACK}" "\${1}" "\${2}" "\${3}" "\${4}" "\${5}" "\${6}" "\${7}" "\${8}" "\${9}"
 }
-complete -F _masternode_dameon_2_completions ${CONTROLLER_BIN}
+complete -F _gridnode_dameon_2_completions ${CONTROLLER_BIN}
 # End of function for ${CONTROLLER_BIN}.
-MN_DAEMON_FUNC_CLI
+GN_DAEMON_FUNC_CLI
 )
-UPDATE_USER_FILE "${_MN_DAEMON_FUNC}" "${CONTROLLER_BIN}" "${6}" "${7}"
+UPDATE_USER_FILE "${_GN_DAEMON_FUNC}" "${CONTROLLER_BIN}" "${6}" "${7}"
 }
 
 sleep 0.1
@@ -3145,10 +2837,10 @@ DENYHOSTS_UNBLOCK
 )
 
 # Create function that can control any masternode daemon.
-_MN_DAEMON_MASTER_FUNC=$( cat << "MN_DAEMON_MASTER_FUNCD"
+_GN_DAEMON_MASTER_FUNC=$( cat << "GN_DAEMON_MASTER_FUNCD"
 
-# Start of function for _masternode_dameon_2.
-_masternode_dameon_2 () {
+# Start of function for _gridnode_dameon_2.
+_gridnode_dameon_2 () {
   stty sane 2>/dev/null
   local TEMP_VAR_A
   local TEMP_VAR_B
@@ -3174,9 +2866,9 @@ _masternode_dameon_2 () {
   local EXPLORER_BLOCKCOUNT_OFFSET
   local CAN_SUDO
   local DATADIR
-  local _MASTERNODE_CALLER
-  local _MASTERNODE_PREFIX
-  local _MASTERNODE_GENKEY_COMMAND
+  local _GRIDNODE_CALLER
+  local _GRIDNODE_PREFIX
+  local _GRIDNODE_GENKEY_COMMAND
   local GITHUB_REPO
   local DAEMON_DOWNLOAD
   local REPLY
@@ -3308,49 +3000,49 @@ _masternode_dameon_2 () {
   EXPLORER_BLOCKCOUNT_OFFSET='0'
   if [[ -r "${5}" ]]
   then
-    _MASTERNODE_CALLER=$( grep -m 1 'masternode_caller=' "${5}" | cut -d '=' -f2 )
-    _MASTERNODE_NAME=$( grep -m 1 'masternode_name=' "${5}" | cut -d '=' -f2 )
-    _MASTERNODE_PREFIX=$( grep -m 1 'masternode_prefix=' "${5}" | cut -d '=' -f2 )
-    _MASTERNODE_GENKEY_COMMAND=$( grep -m 1 'masternode_genkey_command=' "${5}" | cut -d '=' -f2 )
-    _MASTERNODE_PRIVKEY=$( grep -m 1 'masternode_privkey=' "${5}" | cut -d '=' -f2 )
-    _MASTERNODE_CONF=$( grep -m 1 'masternode_conf=' "${5}" | cut -d '=' -f2 )
-    _MASTERNODE_LIST=$( grep -m 1 'masternode_list=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_CALLER=$( grep -m 1 'GRIDNODE_CALLER=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_NAME=$( grep -m 1 'GRIDNODE_NAME=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_PREFIX=$( grep -m 1 'GRIDNODE_PREFIX=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_GENKEY_COMMAND=$( grep -m 1 'GRIDNODE_GENKEY_COMMAND=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_PRIVKEY=$( grep -m 1 'GRIDNODE_PRIVKEY=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_CONF=$( grep -m 1 'GRIDNODE_CONF=' "${5}" | cut -d '=' -f2 )
+    _GRIDNODE_LIST=$( grep -m 1 'GRIDNODE_LIST=' "${5}" | cut -d '=' -f2 )
 
     EXPLORER_BLOCKCOUNT_OFFSET=$( grep -m 1 'explorer_blockcount_offset=' "${5}" | grep -o '=.*' | cut -c2- )
   fi
   EXPLORER_BLOCKCOUNT_OFFSET="${EXPLORER_BLOCKCOUNT_OFFSET//[+-]}"
 
-  if [[ -z "${_MASTERNODE_CALLER}" ]]
+  if [[ -z "${_GRIDNODE_CALLER}" ]]
   then
-    _MASTERNODE_CALLER='masternode '
+    _GRIDNODE_CALLER='gridnode '
   fi
-  if [[ "${_MASTERNODE_CALLER}" == 'masternode' ]]
+  if [[ "${_GRIDNODE_CALLER}" == 'gridnode' ]]
   then
-    _MASTERNODE_CALLER='masternode '
+    _GRIDNODE_CALLER='gridnode '
   fi
-  if [[ -z "${_MASTERNODE_NAME}" ]]
+  if [[ -z "${_GRIDNODE_NAME}" ]]
   then
-    _MASTERNODE_NAME="${_MASTERNODE_CALLER%% }"
+    _GRIDNODE_NAME="${_GRIDNODE_CALLER%% }"
   fi
-  if [[ -z "${_MASTERNODE_PREFIX}" ]]
+  if [[ -z "${_GRIDNODE_PREFIX}" ]]
   then
-    _MASTERNODE_PREFIX='mn'
+    _GRIDNODE_PREFIX='mn'
   fi
-  if [[ -z "${_MASTERNODE_GENKEY_COMMAND}" ]]
+  if [[ -z "${_GRIDNODE_GENKEY_COMMAND}" ]]
   then
-    _MASTERNODE_GENKEY_COMMAND="${_MASTERNODE_CALLER}genkey"
+    _GRIDNODE_GENKEY_COMMAND="${_GRIDNODE_CALLER}genkey"
   fi
-  if [[ -z "${_MASTERNODE_PRIVKEY}" ]]
+  if [[ -z "${_GRIDNODE_PRIVKEY}" ]]
   then
-    _MASTERNODE_PRIVKEY="${_MASTERNODE_NAME}privkey"
+    _GRIDNODE_PRIVKEY="${_GRIDNODE_NAME}privkey"
   fi
-  if [[ -z "${_MASTERNODE_CONF}" ]]
+  if [[ -z "${_GRIDNODE_CONF}" ]]
   then
-    _MASTERNODE_CONF="${_MASTERNODE_NAME}.conf"
+    _GRIDNODE_CONF="${_GRIDNODE_NAME}.conf"
   fi
-  if [[ -z "${_MASTERNODE_LIST}" ]]
+  if [[ -z "${_GRIDNODE_LIST}" ]]
   then
-    _MASTERNODE_LIST="${_MASTERNODE_CALLER}list"
+    _GRIDNODE_LIST="${_GRIDNODE_CALLER}list"
   fi
 
   # Speedbump for dangerous commands.
@@ -3399,7 +3091,7 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "ps" ]
   then
   (
-    TEMP_VAR_A=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_A=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_A}" ]]
     then
       while read -r TEMP_VAR_PID
@@ -3422,10 +3114,10 @@ _masternode_dameon_2 () {
 
       curl -u "${RPCUSER}:${RPCPASSWORD}" --data-binary "{\"jsonrpc\": \"1.0\", \"id\":\"unlocked for staking\", \"method\":\"walletpassphrase\", \"params\":[\"${WALLET_PASSWORD}\", 999999, true] }" -H 'content-type: text/plain;' "http://127.0.0.1:${RPCPORT}/" 2>/dev/null | jq
 
-      WALLET_UNLOCKED=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getstakingstatus | jq '.walletunlocked' )
+      WALLET_UNLOCKED=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getstakingstatus | jq '.walletunlocked' )
       if [[ "${WALLET_UNLOCKED}" != 'true' ]]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" walletpassphrase "${WALLET_PASSWORD}" 9999999999 true
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" walletpassphrase "${WALLET_PASSWORD}" 9999999999 true
       fi
     fi
   )
@@ -3452,7 +3144,7 @@ _masternode_dameon_2 () {
   (
     if [[ -s "${HOME}/.bashrc" ]]
     then
-      cp "${HOME}/.bashrc" /var/multi-masternode-data/.bashrc
+      cp "${HOME}/.bashrc" /var/multi-gridnode-data/.bashrc
     fi
     bash /home/mn-dropbox.sh "${1}" now "${ARG10}" "${ARG11}"
 
@@ -3466,12 +3158,12 @@ _masternode_dameon_2 () {
       echo "${_DBOX_ADDNODE}"
       _DBOX_BOOTSTRAP=$( echo "${DROPBOX_VALUES}" | grep -m 1 '^DROPBOX_BOOTSTRAP=' )
       echo "${_DBOX_BOOTSTRAP}"
-      _DBOX_BLOCKS_N_CHAINS=$( echo "${DROPBOX_VALUES}" | grep -m 1 '^DROPBOX_BLOCKS_N_CHAINS=' )
+      _DBOX_BLOCKS_N_CHAINS=$( echo "${DROPBOX_VALUES}" | grep -m 1 '^BLOCKS_N_CHAINS=' )
       echo "${_DBOX_BLOCKS_N_CHAINS}"
       echo
       sed -i "s/^DROPBOX_ADDNODES=.*/${_DBOX_ADDNODE}/"  "${HOME}/${FILENAME}.sh"
       sed -i "s/^DROPBOX_BOOTSTRAP=.*/${_DBOX_BOOTSTRAP}/"  "${HOME}/${FILENAME}.sh"
-      sed -i "s/^DROPBOX_BLOCKS_N_CHAINS=.*/${_DBOX_BLOCKS_N_CHAINS}/"  "${HOME}/${FILENAME}.sh"
+      sed -i "s/^BLOCKS_N_CHAINS=.*/${_DBOX_BLOCKS_N_CHAINS}/"  "${HOME}/${FILENAME}.sh"
     fi
   )
 
@@ -3479,20 +3171,20 @@ _masternode_dameon_2 () {
   then
   (
     GDRIVE_FOLDER=$( </home/gdrive-folder )
-    TIPS_ADDR=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getaccountaddress mntips 2>/dev/null )
+    TIPS_ADDR=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getaccountaddress mntips 2>/dev/null )
     FILENAME=$( echo "${4}" | tr '[:upper:]' '[:lower:]' )
     if [[ -s "${HOME}/${FILENAME}.sh" ]]
     then
       sed -i "s/^TIPS=.*/TIPS='${TIPS_ADDR}'/"  "${HOME}/${FILENAME}.sh"
     fi
     echo "mn1 address"
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getaccountaddress mn1
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getaccountaddress mn1
     echo
     BIN_BASE_LOWER=$( grep -m 1 'bin_base=' "${5}" | cut -d '=' -f2 | tr '[:upper:]' '[:lower:]' )
 
     # Try to save keys first.
     "${CLI_BIN_LOC}" "-datadir=${DATADIR}/" "dumpwallet" "${DATADIR}/${BIN_BASE_LOWER}.txt" 2>&1
-    GET_SEED_COMMAND=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" help | grep -E 'get.*seed' )
+    GET_SEED_COMMAND=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" help | grep -E 'get.*seed' )
     if [[ ! -z "${GET_SEED_COMMAND}" ]]
     then
       "${CLI_BIN_LOC}" "-datadir=${DATADIR}/" "${GET_SEED_COMMAND}" > "${DATADIR}/${BIN_BASE_LOWER}.${GET_SEED_COMMAND}.json"
@@ -3513,7 +3205,7 @@ _masternode_dameon_2 () {
     fi
 
     # Backup wallet.dat as well.
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" backupwallet "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat"
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" backupwallet "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat"
     if [[ -s "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat" ]]
     then
       echo 'Using backupwallet'
@@ -3538,9 +3230,9 @@ _masternode_dameon_2 () {
         /root/.local/bin/gdrive upload --parent "${GDRIVE_FOLDER}" "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat"
       else
         echo 'Using real wallet file'
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
         cp "${DATADIR}/wallet.dat" "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat"
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
         if [[ -s "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat" ]]
         then
           /root/.local/bin/gdrive upload --parent "${GDRIVE_FOLDER}" "${USER_HOME_DIR}/${BIN_BASE_LOWER}.wallet.dat"
@@ -3554,7 +3246,7 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "ps-short" ]
   then
   (
-    TEMP_VAR_A=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_A=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_A}" ]]
     then
       OLDEST_PID_TIME=0
@@ -3597,31 +3289,31 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "start" ]
   then
   (
-    TEMP_VAR_A=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd | awk '{print $3}' )
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_A=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd | awk '{print $3}' )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
 
     if [[ -z "${TEMP_VAR_PID}" ]]
     then
       echo "Starting ${1}"
       (
       sudo -n systemctl stop "${_DAEMON_SYSTEMD_FILENAME}"  >/dev/null 2>&1
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop  >/dev/null 2>&1
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop  >/dev/null 2>&1
       sudo -n systemctl reset-failed "${_DAEMON_SYSTEMD_FILENAME}"  >/dev/null 2>&1
       sudo -n systemctl start "${_DAEMON_SYSTEMD_FILENAME}"  >/dev/null 2>&1
       sleep 1
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ -z "${TEMP_VAR_PID}" ]]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start-nosystemd  >/dev/null 2>&1
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start-nosystemd  >/dev/null 2>&1
       fi
       ) &
     else
       echo "Already running"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
       return
     fi
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     # shellcheck disable=SC2030,SC2031
     COUNTER=0
     if [ "${ARG10}" == "y" ]
@@ -3630,7 +3322,7 @@ _masternode_dameon_2 () {
     fi
     while [[ -z "${TEMP_VAR_PID}" ]]
     do
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       COUNTER=$((COUNTER+1))
       if [ "${ARG10}" == "y" ]
       then
@@ -3639,7 +3331,7 @@ _masternode_dameon_2 () {
         echo -e "\\r${SP:i++%${#SP}:1} Waiting for ${1} to start (PID) \\c"
       fi
       sleep 0.3
-      if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" failure_after_start | sed '/^[[:space:]]*$/d' | wc -l ) -gt 0 ]] || [[ "${COUNTER}" -gt 50 ]]
+      if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" failure_after_start | sed '/^[[:space:]]*$/d' | wc -l ) -gt 0 ]] || [[ "${COUNTER}" -gt 50 ]]
       then
         break;
       fi
@@ -3651,7 +3343,7 @@ _masternode_dameon_2 () {
     fi
     while [[ ! -z "${TEMP_VAR_PID}" ]] && [[ $( lslocks -n -o COMMAND,PID,PATH | grep -F "${4}" | grep -cF "${TEMP_VAR_PID}" ) -lt 1 ]]
     do
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [ "${ARG10}" == "y" ]
       then
         printf "."
@@ -3659,15 +3351,15 @@ _masternode_dameon_2 () {
         echo -e "\\r${SP:i++%${#SP}:1} Waiting for ${1} to start (LOCK) \\c"
       fi
       sleep 0.3
-      if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" failure_after_start | sed '/^[[:space:]]*$/d' | wc -l ) -gt 0 ]]
+      if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" failure_after_start | sed '/^[[:space:]]*$/d' | wc -l ) -gt 0 ]]
       then
         break;
       fi
     done
     echo
 
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" status
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" status
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
   )
 
   elif [ "${ARG9}" == "journalctl" ]
@@ -3684,8 +3376,8 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "failure_after_start" ]
   then
   (
-    LAST_FAILURE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFin ": error: couldn't connect to server" | tail -n 1 | cut -d: -f1 )
-    LAST_START=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFin " Starting" | tail -n 1 | cut -d: -f1 )
+    LAST_FAILURE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFin ": error: couldn't connect to server" | tail -n 1 | cut -d: -f1 )
+    LAST_START=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFin " Starting" | tail -n 1 | cut -d: -f1 )
     if [[ "${LAST_FAILURE}" -gt "${LAST_START}" ]]
     then
       echo "Failure happened after last start attempt."
@@ -3750,9 +3442,9 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "restart" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     sleep 1
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
   )
 
   elif [ "${ARG9}" == "stop" ]
@@ -3767,7 +3459,7 @@ _masternode_dameon_2 () {
       return
     fi
 
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
     echo "systemctl stop"
     sudo -n systemctl stop "${_DAEMON_SYSTEMD_FILENAME}"  >/dev/null 2>&1
     echo "${2} stop"
@@ -3785,11 +3477,11 @@ _masternode_dameon_2 () {
       return
     fi
 
-    if [[ ! -z $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
+    if [[ ! -z $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
     then
       # shellcheck disable=SC2030,SC2031
       COUNTER=0
-      while [[ ! -z $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
+      while [[ ! -z $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
       do
         while read -r PID_TO_KILL
         do
@@ -3829,10 +3521,10 @@ _masternode_dameon_2 () {
             break
           fi
           sleep 0.5
-        done <<< "$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )"
+        done <<< "$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )"
       done
     fi
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid
     # shellcheck disable=SC2030,SC2031
     COUNTER=0
     while [[ $( lslocks -n -o COMMAND,PID,PATH | grep -c "${DIR}" ) -ne 0 ]]
@@ -3859,14 +3551,14 @@ _masternode_dameon_2 () {
       fi
     done
     echo
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" status
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" status
   )
 
   elif [ "${ARG9}" == "disable" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
     then
       sudo touch "${USER_HOME_DIR}/disabled"
@@ -3878,7 +3570,7 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "enable" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     (
       sleep 60
       if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
@@ -3893,15 +3585,15 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "status" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
     if [[ ! -z "${_DAEMON_SYSTEMD_FILE}" ]]
     then
       systemctl status --no-pager --full "${_DAEMON_SYSTEMD_FILENAME}"
     else
       echo 'PID'
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid
       echo 'Uptime'
-     _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime
+     _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime
     fi
   )
 
@@ -3926,14 +3618,14 @@ _masternode_dameon_2 () {
 
   elif [ "${ARG9}" == "update_script" ] || [ "${ARG9}" == "script_update" ]
   then
-  # Use subshell to isolate the masternode setup script.
+  # Use subshell to isolate the gridnode setup script.
   (
     COUNTER=0
     rm -f /tmp/___mn.sh 2>/dev/null
-    while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." /tmp/___mn.sh ) -eq 0 ]]
+    while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of gridnode setup script." /tmp/___mn.sh ) -eq 0 ]]
     do
       rm -f /tmp/___mn.sh 2>/dev/null
-      wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O /tmp/___mn.sh
+      wget -4qo- raw.githubusercontent.com/unigrid-project/gridnode-setup/master/gridnode.sh -O /tmp/___mn.sh
       chmod 666 /tmp/___mn.sh
       COUNTER=$((COUNTER+1))
       if [[ "${COUNTER}" -gt 3 ]]
@@ -3952,15 +3644,15 @@ _masternode_dameon_2 () {
   )
   # shellcheck source=/root/.bashrc
   source "${HOME:?}/.bashrc"
-  touch /var/multi-masternode-data/.bashrc
-  cp "${HOME:?}/.bashrc" /var/multi-masternode-data/.bashrc
-  chmod 666 /var/multi-masternode-data/.bashrc
+  touch /var/multi-gridnode-data/.bashrc
+  cp "${HOME:?}/.bashrc" /var/multi-gridnode-data/.bashrc
+  chmod 666 /var/multi-gridnode-data/.bashrc
 
   elif [ "${ARG9}" == "update_daemon" ] || [ "${ARG9}" == "daemon_update" ]
   then
   (
     # shellcheck disable=SC2030,SC2031
-    if [[ -z "${BIN_BASE}" ]] || [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon | grep -c "${BIN_BASE}" ) -eq 0 ]]
+    if [[ -z "${BIN_BASE}" ]] || [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon | grep -c "${BIN_BASE}" ) -eq 0 ]]
     then
       # shellcheck disable=SC2030,SC2031
       BIN_BASE=$( grep -m 1 'bin_base=' "${5}" | cut -d '=' -f2 )
@@ -3990,7 +3682,7 @@ _masternode_dameon_2 () {
     CONTROLLER_BIN=${2}
     DAEMON_BIN=${4}
 
-    # Use subshell to isolate the masternode setup script.
+    # Use subshell to isolate the gridnode setup script.
     (
     IS_EMPTY=$( type DAEMON_DOWNLOAD_SUPER 2>/dev/null )
     if [ -z "${IS_EMPTY}" ]
@@ -3998,10 +3690,10 @@ _masternode_dameon_2 () {
       # shellcheck disable=SC2030,SC2031
       COUNTER=0
       rm -f /tmp/___mn.sh 2>/dev/null
-      while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." /tmp/___mn.sh ) -eq 0 ]]
+      while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of gridnode setup script." /tmp/___mn.sh ) -eq 0 ]]
       do
         rm -f /tmp/___mn.sh 2>/dev/null
-        wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O /tmp/___mn.sh
+        wget -4qo- raw.githubusercontent.com/unigrid-project/gridnode-setup/master/gridnode.sh -O /tmp/___mn.sh
         chmod 666 /tmp/___mn.sh
         COUNTER=$((COUNTER+1))
         if [[ "${COUNTER}" -gt 3 ]]
@@ -4029,29 +3721,29 @@ _masternode_dameon_2 () {
     # Set executable bit.
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
     then
-      sudo chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
-      sudo chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+      sudo chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+      sudo chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
     else
-      chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
-      chmod +x "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+      chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+      chmod +x "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
     fi
 
-    VERSION_REMOTE=$( timeout --signal=SIGKILL 9s "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
+    VERSION_REMOTE=$( timeout --signal=SIGKILL 9s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
     if [[ -z "${VERSION_REMOTE}" ]]
     then
-      VERSION_REMOTE=$( timeout --signal=SIGKILL 9s "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" -version 2>/dev/null | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
+      VERSION_REMOTE=$( timeout --signal=SIGKILL 9s "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" -version 2>/dev/null | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
     fi
-    VERSION_LOCAL=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
+    VERSION_LOCAL=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
     if [[ -z "${VERSION_LOCAL}" ]]
     then
-      VERSION_LOCAL=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" -version 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
+      VERSION_LOCAL=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" -version 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
     fi
     if [[ $( echo "${VERSION_LOCAL}" | grep -c "${VERSION_REMOTE}" ) -eq 1 ]] && [[ "${ARG10}" != 'force' ]] && [[ "${ARG10}" != 'force_skip_download' ]]
     then
       echo
       echo "Already the latest version (${VERSION_LOCAL}) according to "
       echo "https://github.com/${GITHUB_REPO}/releases/latest"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" --help | head -n 1
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" --help | head -n 1
       echo
       return 1 2>/dev/null
     fi
@@ -4060,63 +3752,63 @@ _masternode_dameon_2 () {
     # shellcheck disable=SC2030,SC2031
     echo "${dt} Updating ${VERSION_LOCAL} to the latest version ${VERSION_REMOTE} for ${1}" 2>&1 | tee -a "${USR_HOME}/update.log"
     echo
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
     then
       sudo mkdir -p "${USER_HOME_DIR}"/.local/bin
-      sudo cp "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" "${USER_HOME_DIR}"/.local/bin/
+      sudo cp "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" "${USER_HOME_DIR}"/.local/bin/
       sudo chmod +x "${USER_HOME_DIR}"/.local/bin/"${DAEMON_BIN}"
-      sudo cp "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" "${USER_HOME_DIR}"/.local/bin/
+      sudo cp "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" "${USER_HOME_DIR}"/.local/bin/
       sudo chmod +x "${USER_HOME_DIR}"/.local/bin/"${CONTROLLER_BIN}"
       sudo chown -R "${1}":"${1}" "${USER_HOME_DIR}"
     else
       mkdir -p "${USER_HOME_DIR}"/.local/bin
-      cp "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" "${USER_HOME_DIR}"/.local/bin/
+      cp "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" "${USER_HOME_DIR}"/.local/bin/
       chmod +x "${USER_HOME_DIR}"/.local/bin/"${DAEMON_BIN}"
-      cp "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" "${USER_HOME_DIR}"/.local/bin/
+      cp "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" "${USER_HOME_DIR}"/.local/bin/
       chmod +x "${USER_HOME_DIR}"/.local/bin/"${CONTROLLER_BIN}"
       chown -R "${1}":"${1}" "${USER_HOME_DIR}"
     fi
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
     echo
     # shellcheck disable=SC2030,SC2031
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" --help | head -n 1 2>&1 | tee -a "${USR_HOME}/update.log"
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" --help | head -n 1 2>&1 | tee -a "${USR_HOME}/update.log"
     echo
 
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" wait_for_loaded
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck_fix
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" wait_for_loaded
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck_fix
     fi
-    echo "bash -ic 'source /var/multi-masternode-data/.bashrc; ${1} blockcheck_fix 2>&1'" | at now +24 hours 2>&1 | grep -v "commands will be executed using"
-    echo "bash -ic 'source /var/multi-masternode-data/.bashrc; ${1} blockcheck_reindex 2>&1'" | at now +48 hours 2>&1 | grep -v "commands will be executed using"
-    echo "bash -ic 'source /var/multi-masternode-data/.bashrc; ${1} blockcheck_reindex 2>&1'" | at now +72 hours  2>&1 | grep -v "commands will be executed using"
+    echo "bash -ic 'source /var/multi-gridnode-data/.bashrc; ${1} blockcheck_fix 2>&1'" | at now +24 hours 2>&1 | grep -v "commands will be executed using"
+    echo "bash -ic 'source /var/multi-gridnode-data/.bashrc; ${1} blockcheck_reindex 2>&1'" | at now +48 hours 2>&1 | grep -v "commands will be executed using"
+    echo "bash -ic 'source /var/multi-gridnode-data/.bashrc; ${1} blockcheck_reindex 2>&1'" | at now +72 hours  2>&1 | grep -v "commands will be executed using"
   )
 
   elif [ "${ARG9}" == "wait_for_loaded" ]
   then
   (
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
       sleep 10
     fi
 
-    GETINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
+    GETINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
     if [[ "${#GETINFO}" -lt 7 ]]
     then
-      GETINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"debug )
+      GETINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"debug )
       if [[ "${#GETINFO}" -lt 7 ]]
       then
-        GETINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getinfo )
+        GETINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getinfo )
       fi
     fi
     WAIT_FOR=1000
@@ -4134,7 +3826,7 @@ _masternode_dameon_2 () {
       [[ $( echo "${GETINFO}" | grep -ci 'Loading fulfilled requests cache.' ) -gt 0 ]] || \
       [[ $( echo "${GETINFO}" | grep -ci 'Verifying blocks' ) -gt 0 ]]
     do
-      LAST_LINE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 1 )
+      LAST_LINE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 1 )
       if [[ "$( echo "${LAST_LINE}" | grep -ic 'Shutdown: done' )" -gt 0 ]]
       then
         echo
@@ -4163,13 +3855,13 @@ _masternode_dameon_2 () {
       sleep 0.3
       if [[ $(( COUNTER % 9 )) -eq 0 ]]
       then
-        GETINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
+        GETINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
         if [[ "${#GETINFO}" -lt 7 ]]
         then
-          GETINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"debug )
+          GETINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"debug )
           if [[ "${#GETINFO}" -lt 7 ]]
           then
-            GETINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getinfo )
+            GETINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getinfo )
           fi
         fi
       fi
@@ -4181,36 +3873,36 @@ _masternode_dameon_2 () {
   elif [ "${ARG9}" == "blockcheck_fix" ]
   then
   (
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" remove_addnode
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" remove_addnode
 
-      DROPBOX_BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
+      BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
       DROPBOX_BOOTSTRAP=$( grep -m 1 'bootstrap=' "${5}" | cut -d '=' -f2 )
-      if [[ ! -z "${DROPBOX_BLOCKS_N_CHAINS}" ]]
+      if [[ ! -z "${BLOCKS_N_CHAINS}" ]]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_blocks_n_chains force
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_blocks_n_chains force
       elif [ ! -z "${DROPBOX_BOOTSTRAP}" ]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_bootstrap
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_bootstrap
       else
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
       fi
 
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
   elif [ "${ARG9}" == "blockcheck_reindex" ]
   then
   (
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" remove_addnode
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" remove_addnode
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
@@ -4219,7 +3911,7 @@ _masternode_dameon_2 () {
   (
     sudo true >/dev/null 2>&1
     USR_EXISTS=$( id -u "${1}" 2>/dev/null )
-    DAEMON_BALANCE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
+    DAEMON_BALANCE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
     if [[ "${DAEMON_BALANCE}" != 0 ]] && [[ "${DAEMON_BALANCE}" =~ $RE_FLOAT ]]
     then
       echo "WARNING! Balance is not zero! ${DAEMON_BALANCE}"
@@ -4242,7 +3934,7 @@ _masternode_dameon_2 () {
         echo -ne "$(date -u --date @$(( date1 - $(date -u +%s) )) +%H:%M:%S)\r";
       done
     fi
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       echo "kill -9 ${TEMP_VAR_PID}"
@@ -4282,19 +3974,19 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
 "
     while read -r SEARCH_LINE
     do
-      if [[ $( grep -c "${SEARCH_LINE}" /etc/apparmor.d/multi-masternode-data ) -gt 0 ]]
+      if [[ $( grep -c "${SEARCH_LINE}" /etc/apparmor.d/multi-gridnode-data ) -gt 0 ]]
       then
         END=0
-        START=$( grep -Fxn "${SEARCH_LINE} {" /etc/apparmor.d/multi-masternode-data | sed 's/:/ /g' | awk '{print $1 }' )
+        START=$( grep -Fxn "${SEARCH_LINE} {" /etc/apparmor.d/multi-gridnode-data | sed 's/:/ /g' | awk '{print $1 }' )
         if [[ "${START}" -gt 0 ]] && [[ "${#START}" -gt 0 ]]
         then
-          END=$( tail -n "+${START}" /etc/apparmor.d/multi-masternode-data | grep -xn -m 1 '^}$' | sed 's/:/ /g' | awk '{print $1 }' )
+          END=$( tail -n "+${START}" /etc/apparmor.d/multi-gridnode-data | grep -xn -m 1 '^}$' | sed 's/:/ /g' | awk '{print $1 }' )
         fi
         if [[ "${END}" -gt 0 ]]
         then
           END=$(( START + END - 1 ))
           echo "Removing ${SEARCH_LINE} from apparmor"
-          sed -i "${START},${END}d" /etc/apparmor.d/multi-masternode-data
+          sed -i "${START},${END}d" /etc/apparmor.d/multi-gridnode-data
         fi
       fi
     done <<< "${LINES}"
@@ -4323,7 +4015,7 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
   elif [ "${ARG9}" == "reindexzerocoin" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
     sleep 2
 
     echo "Rebuild local zerocoin database"
@@ -4337,21 +4029,21 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
 
     echo
     echo "Restarting ${1}"
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
     sleep 5
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
   )
 
   elif [ "${ARG9}" == "reindex" ]
   then
   (
     HAS_ZERO_COIN=' --reindexzerocoin'
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getzerocoinbalance | grep -cF "not found") -gt 0 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getzerocoinbalance | grep -cF "not found") -gt 0 ]]
     then
       HAS_ZERO_COIN=''
     fi
     echo "Stopping ${1}"
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
     sleep 2
     echo "Remove local blockchain database"
     FILENAME=$( basename "${5}" )
@@ -4363,8 +4055,8 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     fi
     if [[ "${ARG10}" == "nuke" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" connect_to_addnode
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" addnode_remove
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" connect_to_addnode
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" addnode_remove
       rm -r "${DIR}/peers.dat"
       rm -r "${DIR}/debug.log"
     fi
@@ -4372,7 +4064,7 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     if ([ "${ARG10}" == "remove_addnode" ] || [ "${ARG10}" == "addnode_remove" ] || [ "${ARG11}" == "remove_addnode" ] || [ "${ARG11}" == "addnode_remove" ]) && [ -r "${5}" ]
     then
       echo "${5}"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" addnode_remove
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" addnode_remove
     fi
 
     echo "Rebuild local blockchain database"
@@ -4391,9 +4083,9 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     sleep 5
     echo
     echo "Restarting ${1}"
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
     sleep 5
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
   )
 
   elif [ "${ARG9}" == "system_log" ] || [ "${ARG9}" == "log_system" ]
@@ -4401,7 +4093,7 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
   (
     if [ "${ARG10}" == "grep" ]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFi "${ARG11}"
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFi "${ARG11}"
     else
       journalctl -q -u "${1}"
     fi
@@ -4541,16 +4233,16 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
   (
     if [ -s "${DIR}/peers.dat" ]
     then
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
       fi
       rm -f "${DIR}/peers.dat"
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
         sleep 5
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
       fi
     fi
   )
@@ -4563,10 +4255,10 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
       return
     fi
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
 
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
@@ -4579,17 +4271,17 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sleep 5
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
   elif [ "${ARG9}" == "addnode_to_connect" ] && [ -r "${5}" ]
   then
   (
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
 
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
@@ -4602,17 +4294,17 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sleep 5
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
   elif [ "${ARG9}" == "connect_to_addnode" ] && [ -r "${5}" ]
   then
   (
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
 
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
@@ -4625,7 +4317,7 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sleep 5
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
@@ -4676,10 +4368,10 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
         fi
 
         # Restarting node to make changes take effect.
-        TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+        TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
         if [[ ! -z "${TEMP_VAR_PID}" ]]
         then
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
         fi
 
       elif [[ ! -z "${CONF_NOW}" ]]
@@ -4761,10 +4453,10 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
       sudo ufw allow "${ARG10}" >/dev/null 2>&1
 
       # Restart node to change port settings.
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
       fi
     fi
 
@@ -4778,65 +4470,65 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     fi
   )
 
-  elif [ "${ARG9}" == "mnlocal" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}local" ]
+  elif [ "${ARG9}" == "mnlocal" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}local" ]
   then
   (
-    BALANCE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
+    BALANCE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
     if [[ $( echo "${BALANCE}>0" | bc 2>/dev/null ) -gt 0 ]]
     then
-      MN_OUTPUTS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"outputs )
-      if [[ "${#MN_OUTPUTS}" -gt 10 ]]
+      GN_OUTPUTS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"outputs )
+      if [[ "${#GN_OUTPUTS}" -gt 10 ]]
       then
-        echo "${MN_OUTPUTS}"
-        MN_DEBUG=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"debug )
-        if [[ "${#MN_DEBUG}" -gt 10 ]]
+        echo "${GN_OUTPUTS}"
+        GN_DEBUG=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"debug )
+        if [[ "${#GN_DEBUG}" -gt 10 ]]
         then
-          echo "${MN_DEBUG}"
+          echo "${GN_DEBUG}"
         else
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status
         fi
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CONF}"
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CONF}"
       else
         echo
         echo "${BALANCE}"
-        MN1_ADDR=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getaccountaddress mn1 )
-        echo "${1}" sendtoaddress "${MN1_ADDR}"
+        GN1_ADDR=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getaccountaddress mn1 )
+        echo "${1}" sendtoaddress "${GN1_ADDR}"
         echo
       fi
     fi
   )
 
-  elif [ "${ARG9}" == "masternode.conf" ] || [ "${ARG9}" == "${_MASTERNODE_CONF}" ]
+  elif [ "${ARG9}" == "masternode.conf" ] || [ "${ARG9}" == "${_GRIDNODE_CONF}" ]
   then
   (
     if [[ "${ARG10}" == 'loc' ]] || [[ "${ARG10}" == 'location' ]]
     then
-      touch "${DATADIR}/${_MASTERNODE_CONF}"
-      chown "${1}":"${1}" "${DATADIR}/${_MASTERNODE_CONF}"
-      echo "${DATADIR}/${_MASTERNODE_CONF}"
+      touch "${DATADIR}/${_GRIDNODE_CONF}"
+      chown "${1}":"${1}" "${DATADIR}/${_GRIDNODE_CONF}"
+      echo "${DATADIR}/${_GRIDNODE_CONF}"
 
     elif [[ "${ARG10}" == 'nano' ]]
     then
-      nano "${DATADIR}/${_MASTERNODE_CONF}"
-      chown "${1}":"${1}" "${DATADIR}/${_MASTERNODE_CONF}"
+      nano "${DATADIR}/${_GRIDNODE_CONF}"
+      chown "${1}":"${1}" "${DATADIR}/${_GRIDNODE_CONF}"
 
     elif [[ "${ARG10}" == 'vim' ]]
     then
-      nano "${DATADIR}/${_MASTERNODE_CONF}"
-      chown "${1}":"${1}" "${DATADIR}/${_MASTERNODE_CONF}"
+      nano "${DATADIR}/${_GRIDNODE_CONF}"
+      chown "${1}":"${1}" "${DATADIR}/${_GRIDNODE_CONF}"
 
     elif [[ "${ARG10}" == 'cat' ]]
     then
-      touch "${DATADIR}/${_MASTERNODE_CONF}"
-      chown "${1}":"${1}" "${DATADIR}/${_MASTERNODE_CONF}"
-      cat "${DATADIR}/${_MASTERNODE_CONF}"
+      touch "${DATADIR}/${_GRIDNODE_CONF}"
+      chown "${1}":"${1}" "${DATADIR}/${_GRIDNODE_CONF}"
+      cat "${DATADIR}/${_GRIDNODE_CONF}"
 
     elif  [ -r "${5}" ]
     then
       PART_A=$( hostname -s )
       PART_B1=$( grep -m 1 'externalip=' "${5}" | cut -d '=' -f2 )
       PART_B2=$( grep -m 1 'defaultport=' "${5}" | cut -d '=' -f2 )
-      PART_C=$( grep -m 1 "${_MASTERNODE_PRIVKEY}=" "${5}" | cut -d '=' -f2 )
+      PART_C=$( grep -m 1 "${_GRIDNODE_PRIVKEY}=" "${5}" | cut -d '=' -f2 )
       PART_D=$( grep -m 1 'txhash=' "${5}" | cut -d '=' -f2 )
       PART_E=$( grep -m 1 'outputidx=' "${5}" | cut -d '=' -f2 )
       if [ ! -z "${PART_B2}" ]
@@ -4847,7 +4539,7 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
       fi
       if [[ -z "${PART_D}" ]] || [[ -z "${PART_E}" ]]
       then
-        MASTERNODE_OUTPUTS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"outputs )
+        MASTERNODE_OUTPUTS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"outputs )
         TXID=$( echo "${MASTERNODE_OUTPUTS}" | jq -r ".[0].txhash" 2>/dev/null | grep -o -w -E '[[:alnum:]]{64}' )
         OUTPUTIDX=$( echo "${MASTERNODE_OUTPUTS}" | jq -r ".[0].outputidx" 2>/dev/null )
         if [[ -z "${TXID}" ]] || [[ -z "${OUTPUTIDX}" ]]
@@ -4865,9 +4557,9 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
 
       if [[ "${ARG10}" == 'add' ]]
       then
-        touch "${DATADIR}/${_MASTERNODE_CONF}"
-        echo "${1}_${PART_A} ${PART_B1} ${PART_C} ${PART_D} ${PART_E}" >> "${DATADIR}/${_MASTERNODE_CONF}"
-        chown "${1}":"${1}" "${DATADIR}/${_MASTERNODE_CONF}"
+        touch "${DATADIR}/${_GRIDNODE_CONF}"
+        echo "${1}_${PART_A} ${PART_B1} ${PART_C} ${PART_D} ${PART_E}" >> "${DATADIR}/${_GRIDNODE_CONF}"
+        chown "${1}":"${1}" "${DATADIR}/${_GRIDNODE_CONF}"
       fi
     fi
   )
@@ -4879,14 +4571,14 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
     if [[ "${ARG10}" == "genkey" ]] || [[ "${ARG10}" == "keygen" ]]
     then
 
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ -z "${TEMP_VAR_PID}" ]]
       then
         echo "Starting ${1}"
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
       fi
 
-      TEMP_VAR_A=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_GENKEY_COMMAND}" )
+      TEMP_VAR_A=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_GENKEY_COMMAND}" )
 
       # New code for dash 0.14.
       if [[ $( echo "${TEMP_VAR_A}" | grep -c '"secret":' ) -gt 0 ]]
@@ -4897,76 +4589,76 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
 
     if [ -z "${ARG10}" ]
     then
-      grep -m 1 "${_MASTERNODE_PRIVKEY}=" "${5}" | cut -d '=' -f2
+      grep -m 1 "${_GRIDNODE_PRIVKEY}=" "${5}" | cut -d '=' -f2
 
     elif [[ "${ARG10}" == "remove" ]]
     then
-      if [[ $( grep -cF "${_MASTERNODE_NAME}=" "${5}" ) -ge 1 ]] || [[ $( grep -cF "/${_MASTERNODE_PRIVKEY}=" "${5}" ) -ge 1 ]]
+      if [[ $( grep -cF "${_GRIDNODE_NAME}=" "${5}" ) -ge 1 ]] || [[ $( grep -cF "/${_GRIDNODE_PRIVKEY}=" "${5}" ) -ge 1 ]]
       then
-        TEMP_VAR_PIDD=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+        TEMP_VAR_PIDD=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
         if [[ ! -z "${TEMP_VAR_PIDD}" ]]
         then
           echo "Stopping ${1}"
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
         fi
-        echo "Removing ${_MASTERNODE_NAME} configuration for ${1}"
+        echo "Removing ${_GRIDNODE_NAME} configuration for ${1}"
 
         if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
         then
-          sudo sed -i "/${_MASTERNODE_PRIVKEY}\=/d" "${5}"
-          sudo sed -i "/${_MASTERNODE_NAME}\=/d" "${5}"
+          sudo sed -i "/${_GRIDNODE_PRIVKEY}\=/d" "${5}"
+          sudo sed -i "/${_GRIDNODE_NAME}\=/d" "${5}"
         else
-          sed -i "/${_MASTERNODE_PRIVKEY}\=/d" "${5}"
-          sed -i "/${_MASTERNODE_NAME}\=/d" "${5}"
+          sed -i "/${_GRIDNODE_PRIVKEY}\=/d" "${5}"
+          sed -i "/${_GRIDNODE_NAME}\=/d" "${5}"
         fi
 
         if [[ ! -z "${TEMP_VAR_PIDD}" ]]
         then
           echo "Starting ${1}"
           sleep 5
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
         fi
       fi
 
     elif [[ "${#TEMP_VAR_A}" -ne 51 ]] && [[ "${#TEMP_VAR_A}" -ne 50 ]]
     then
       echo
-      echo "New ${_MASTERNODE_PRIVKEY} is not 50/51 char long and thus invalid."
+      echo "New ${_GRIDNODE_PRIVKEY} is not 50/51 char long and thus invalid."
       echo "${TEMP_VAR_A}"
       echo
       return 1 2>/dev/null
 
     else
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
         echo "Stopping ${1}"
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
         sleep 0.5
       fi
 
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" privkey remove
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" privkey remove
       echo "Reconfiguring ${1}"
-      echo "${_MASTERNODE_NAME}=1" | sudo tee -a "${5}" >/dev/null
-      echo "${_MASTERNODE_PRIVKEY}=${TEMP_VAR_A}" | sudo tee -a "${5}" >/dev/null
+      echo "${_GRIDNODE_NAME}=1" | sudo tee -a "${5}" >/dev/null
+      echo "${_GRIDNODE_PRIVKEY}=${TEMP_VAR_A}" | sudo tee -a "${5}" >/dev/null
 
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
         echo "Starting ${1}"
         sleep 3
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
       fi
 
       echo "privkey"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" privkey
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" privkey
     fi
   )
 
-  elif [ "${ARG9}" == "mnlistfull" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}listfull" ]
+  elif [ "${ARG9}" == "mnlistfull" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}listfull" ]
   then
   (
-    MN_LIST=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" masternode list )
-    if [[ -z $( echo "${MN_LIST}" | jq '.[].rank' 2>/dev/null | tr -d '\040\011\012\015' ) ]]
+    GN_LIST=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" gridnode list )
+    if [[ -z $( echo "${GN_LIST}" | jq '.[].rank' 2>/dev/null | tr -d '\040\011\012\015' ) ]]
     then
       if [[ -z "${ARG10}" ]]
       then
@@ -4999,12 +4691,12 @@ sentinelstate
       TEMP_FILE_NAME2=$( mktemp )
       while read -r ATTRIBUTE
       do
-        MN_LIST_INFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" masternode list "${ATTRIBUTE}" | jq '.' 2>/dev/null |  tr -d ' ' | sed '/^$/d' )
-        if [[ -z "${MN_LIST_INFO}" ]]
+        GN_LIST_INFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" gridnode list "${ATTRIBUTE}" | jq '.' 2>/dev/null |  tr -d ' ' | sed '/^$/d' )
+        if [[ -z "${GN_LIST_INFO}" ]]
         then
           continue
         fi
-        MN_LIST_INFO=$( echo "${MN_LIST_INFO}" | sed -r '/^.{,3}$/d' )
+        GN_LIST_INFO=$( echo "${GN_LIST_INFO}" | sed -r '/^.{,3}$/d' )
         OUTPUT=''
         while read -r LINE
         do
@@ -5015,7 +4707,7 @@ sentinelstate
             OUTPUT="${OUTPUT}
 ${KEY}: {\"${ATTRIBUTE}\": ${VALUE} }"
           fi
-        done <<< "${MN_LIST_INFO}"
+        done <<< "${GN_LIST_INFO}"
         if [[ "${#OUTPUT}" -gt 10 ]]
         then
           TEMP_FILE="$( echo "${OUTPUT}" | sed '/^[[:space:]]*$/d' | sed '$!s/$/,/' )"
@@ -5035,14 +4727,14 @@ ${TEMP_FILE}
       rm "${TEMP_FILE_NAME1}"
       rm "${TEMP_FILE_NAME2}"
     else
-      echo "${MN_LIST}" | jq '.'
+      echo "${GN_LIST}" | jq '.'
     fi
   )
 
-  elif [ "${ARG9}" == "masternodeping" ] || [ "${ARG9}" == "mnping" ] || [ "${ARG9}" == "${_MASTERNODE_NAME}ping" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}ping" ]
+  elif [ "${ARG9}" == "gridnodeping" ] || [ "${ARG9}" == "mnping" ] || [ "${ARG9}" == "${_GRIDNODE_NAME}ping" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}ping" ]
   then
   (
-    DATE_STRING=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tac | grep -ai -m1 "active.*${_MASTERNODE_NAME}ping" | awk '{print $1 " " $2}' )
+    DATE_STRING=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tac | grep -ai -m1 "active.*${_GRIDNODE_NAME}ping" | awk '{print $1 " " $2}' )
     if [[ ! -z "${DATE_STRING}" ]]
     then
       UNIX_TIME_LAST=$( date -u --date="${DATE_STRING}" +%s )
@@ -5057,15 +4749,15 @@ ${TEMP_FILE}
   (
     if [[ "${ARG10}" == "log" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" sentinel_log "${ARG11}" "${ARG12}" "${ARG13}" "${ARG14}"
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" sentinel_log "${ARG11}" "${ARG12}" "${ARG13}" "${ARG14}"
 
     elif [[ "${ARG10}" == "run" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" sentinel_run "${ARG11}"
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" sentinel_run "${ARG11}"
 
     elif [[ "${ARG10}" == "install" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" sentinel_install "${ARG11}"
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" sentinel_install "${ARG11}"
     fi
   )
 
@@ -5189,7 +4881,7 @@ ${TEMP_FILE}
       cd "${HOME}" || return
     fi
 
-    # Use subshell to isolate the masternode setup script.
+    # Use subshell to isolate the gridnode setup script.
     (
     IS_EMPTY=$( type SENTINEL_GENERIC_SETUP 2>/dev/null )
     if [ -z "${IS_EMPTY}" ]
@@ -5197,10 +4889,10 @@ ${TEMP_FILE}
       # shellcheck disable=SC2030,SC2031
       COUNTER=0
       rm -f /tmp/___mn.sh 2>/dev/null
-      while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." /tmp/___mn.sh ) -eq 0 ]]
+      while [[ ! -f /tmp/___mn.sh ]] || [[ $( grep -Fxc "# End of gridnode setup script." /tmp/___mn.sh ) -eq 0 ]]
       do
         rm -f /tmp/___mn.sh 2>/dev/null
-        wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O /tmp/___mn.sh
+        wget -4qo- raw.githubusercontent.com/unigrid-project/gridnode-setup/master/gridnode.sh -O /tmp/___mn.sh
         chmod 666 /tmp/___mn.sh
         COUNTER=$((COUNTER+1))
         if [[ "${COUNTER}" -gt 3 ]]
@@ -5239,15 +4931,15 @@ ${TEMP_FILE}
   (
     :
     return
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFi ": error: couldn't connect to server" | tail -n 5 | sed '/^[[:space:]]*$/d' | wc -l ) -lt 5 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFi ": error: couldn't connect to server" | tail -n 5 | sed '/^[[:space:]]*$/d' | wc -l ) -lt 5 ]]
     then
       return
     fi
     # Get the failure from 5 times ago
-    DATE_STRING=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFi ": error: couldn't connect to server" | tail -n 5 | head -n 1 | awk '{ print $1 " " $2 " " $3 }' )
+    DATE_STRING=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | grep -aFi ": error: couldn't connect to server" | tail -n 5 | head -n 1 | awk '{ print $1 " " $2 " " $3 }' )
     UNIX_TIME_PAST_FAILURE=$( date -u --date="${DATE_STRING}" +%s 2>/dev/null )
     # Get the last entry in the system log.
-    DATE_STRING=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | tail -n 1 | awk '{ print $1 " " $2 " " $3 }' )
+    DATE_STRING=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | tail -n 1 | awk '{ print $1 " " $2 " " $3 }' )
     UNIX_TIME_CURRENT_EVENT=$( date -u --date="${DATE_STRING}" +%s 2>/dev/null )
     UNIX_TIME=$( date -u +%s )
     if [[ ! -z "${UNIX_TIME_PAST_FAILURE}" ]] && [[ ! -z "${UNIX_TIME_CURRENT_EVENT}" ]]
@@ -5256,7 +4948,7 @@ ${TEMP_FILE}
       TIME_DIFF_LAST_FAILURE=$(( UNIX_TIME_CURRENT_EVENT - UNIX_TIME_PAST_FAILURE ))
       if [[ "${TIME_DIFF_LAST_FAILURE}" -lt 2000 ]] && [[ "${TIME_DIFF_LAST_ENTRY}" -lt 300 ]]
       then
-        if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | tail -n 15 | grep -aFic ": Error: Unable to bind to " ) -gt 0 ]] || [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | tail -n 50 | grep -Fic "Error: Failed to listen on any port" ) -gt 0 ]]
+        if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | tail -n 15 | grep -aFic ": Error: Unable to bind to " ) -gt 0 ]] || [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" system_log | tail -n 50 | grep -Fic "Error: Failed to listen on any port" ) -gt 0 ]]
         then
           echo "ERROR: Daemon can not be started by systemd (Port/IP issue)."
         else
@@ -5326,7 +5018,7 @@ ${TEMP_FILE}
     echo "${TIME_DIFF}"
   )
 
-  elif [ "${ARG9}" == "mnfix" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}fix" ]
+  elif [ "${ARG9}" == "mnfix" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}fix" ]
   then
   (
     dt=$( date -u '+%d/%m/%Y %H:%M:%S' )
@@ -5336,7 +5028,7 @@ ${TEMP_FILE}
       return 1 2>/dev/null
     fi
 
-    LOCKFILE="/var/multi-masternode-data/${1}-mnfix.lock"
+    LOCKFILE="/var/multi-gridnode-data/${1}-mnfix.lock"
     if [[ -s "${LOCKFILE}" ]] && kill -0 "$( cat "${LOCKFILE}" )"
     then
       PID_TO_KILL=$( cat "${LOCKFILE}" )
@@ -5360,7 +5052,7 @@ ${TEMP_FILE}
     fi
     if [[ -z "${LAST_2K_LOG_LINES_TAC}" ]]
     then
-      LAST_2K_LOG_LINES_TAC=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 100 )
+      LAST_2K_LOG_LINES_TAC=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 100 )
     fi
 
     # See if node is stalled via log files.
@@ -5368,14 +5060,14 @@ ${TEMP_FILE}
     then
       dt=$( date -u '+%d/%m/%Y %H:%M:%S' )
       echo "${dt} Restarting ${1} as it is frozen."
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
       sleep 2
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
       sleep 2
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
       sleep 10
       echo "${dt} ${1} process"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
       return
     fi
 
@@ -5395,100 +5087,100 @@ ${TEMP_FILE}
     echo $$ > "${LOCKFILE}"
     chmod 666 "${LOCKFILE}"
 
-    if [[ $( timeout --foreground --signal=SIGKILL 45s bash -ic "source /var/multi-masternode-data/.bashrc; ${1} getinfo 2>/dev/null | wc -l" 2>/dev/null ) -lt 5 ]]
+    if [[ $( timeout --foreground --signal=SIGKILL 45s bash -ic "source /var/multi-gridnode-data/.bashrc; ${1} getinfo 2>/dev/null | wc -l" 2>/dev/null ) -lt 5 ]]
     then
       dt=$( date -u '+%d/%m/%Y %H:%M:%S' )
       echo "${dt} Restarting ${1} as it is frozen."
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
       sleep 2
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
       sleep 2
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
       sleep 10
       echo "${dt} ${1} process"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
     fi
 
     dt=$( date -u '+%d/%m/%Y %H:%M:%S' )
-    if [[ -z $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
+    if [[ -z $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
     then
       echo "${dt} Starting ${1} as it is not running."
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
 
       sleep 10
       echo "${dt} ${1} process"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
     fi
 
-    MN_UPTIME=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime | tr -d '[:space:]' )
-    MN_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
-    MN_SYSTEMD=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd )
-    if [[ "${MN_UPTIME}" -gt 1000 ]] && ([[ $( echo "${MN_STATUS}" | grep -ic 'successfully started' ) -ge 1 ]] || [[ $( echo "${MN_STATUS}" | grep -ic 'started remotely' ) -ge 1 ]])
+    GN_UPTIME=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime | tr -d '[:space:]' )
+    GN_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
+    GN_SYSTEMD=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd )
+    if [[ "${GN_UPTIME}" -gt 1000 ]] && ([[ $( echo "${GN_STATUS}" | grep -ic 'successfully started' ) -ge 1 ]] || [[ $( echo "${GN_STATUS}" | grep -ic 'started remotely' ) -ge 1 ]])
     then
-      if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount ) -lt 4 ]]
+      if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount ) -lt 4 ]]
       then
         echo "${dt} Getting addnodes for ${1}"
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_addnode
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_addnode
       fi
 
-      if [[ $( echo "${MN_SYSTEMD}" | grep -c 'enabled active running' ) -lt 1 ]]
+      if [[ $( echo "${GN_SYSTEMD}" | grep -c 'enabled active running' ) -lt 1 ]]
       then
-        if [[ $( echo "${MN_SYSTEMD}" | grep -c 'enabled' ) -lt 1 ]]
+        if [[ $( echo "${GN_SYSTEMD}" | grep -c 'enabled' ) -lt 1 ]]
         then
           echo "${dt} Enable ${1} systemd service on reboot."
           sudo -n systemctl enable "${_DAEMON_SYSTEMD_FILENAME}" 2>&1
         fi
-        if [[ $( echo "${MN_SYSTEMD}" | grep -c 'running' ) -lt 1 ]]
+        if [[ $( echo "${GN_SYSTEMD}" | grep -c 'running' ) -lt 1 ]]
         then
           echo "${dt} Restarting ${1} for systemd."
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
         fi
-        MN_SYSTEMD=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd )
-        echo "${dt} ${MN_SYSTEMD}"
+        GN_SYSTEMD=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd )
+        echo "${dt} ${GN_SYSTEMD}"
       fi
 
-      if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_NAME}ping" ) -gt 1500 ]]
+      if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_NAME}ping" ) -gt 1500 ]]
       then
         echo "${dt} Restarting ${1} because mn hasn't pinged the network in over 1500 seconds."
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_NAME}ping"
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_NAME}ping"
       fi
     fi
 
     dt=$( date -u '+%d/%m/%Y %H:%M:%S' )
-    if [[ $( echo "${MN_SYSTEMD}" | grep -c 'enabled active running' ) -lt 1 ]] && [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_in_good_state | grep -Fc "ERROR: Daemon can not be started by systemd." ) -gt 0 ]]
+    if [[ $( echo "${GN_SYSTEMD}" | grep -c 'enabled active running' ) -lt 1 ]] && [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_in_good_state | grep -Fc "ERROR: Daemon can not be started by systemd." ) -gt 0 ]]
     then
       echo "${dt} Systemd can not start ${1}"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
       sleep 2
 
-      DROPBOX_BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
+      BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
       DROPBOX_BOOTSTRAP=$( grep -m 1 'bootstrap=' "${5}" | cut -d '=' -f2 )
-      if [[ ! -z "${DROPBOX_BLOCKS_N_CHAINS}" ]]
+      if [[ ! -z "${BLOCKS_N_CHAINS}" ]]
       then
         echo "${dt} Using blocks snapshot."
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_blocks_n_chains force
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_blocks_n_chains force
       elif [ ! -z "${DROPBOX_BOOTSTRAP}" ]
       then
         echo "${dt} Using bootstrap file."
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_bootstrap_reindex
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_bootstrap_reindex
       else
         echo "${dt} Using bootstrap file."
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
       fi
 
       sleep 2
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
 
     dt=$( date -u '+%d/%m/%Y %H:%M:%S' )
-    LASTBLOCK_TIME=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lastblock_time )
+    LASTBLOCK_TIME=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lastblock_time )
     if [[ "${LASTBLOCK_TIME}" -gt 500 ]]
     then
-      WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+      WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
       WEB_BLK_HIGH=$(( WEB_BLK + EXPLORER_BLOCKCOUNT_OFFSET ))
       WEB_BLK_LOW=$(( WEB_BLK - EXPLORER_BLOCKCOUNT_OFFSET ))
-      LOCAL_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount )
+      LOCAL_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount )
       BLKCOUNTL=$((LOCAL_BLK-2))
       BLKCOUNTH=$((LOCAL_BLK+2))
 
@@ -5500,127 +5192,127 @@ ${TEMP_FILE}
           echo "Local: ${LOCAL_BLK} Remote: ${WEB_BLK}"
           echo "${WEB_BLK_HIGH} -lt ${BLKCOUNTL}"
           echo "${WEB_BLK_LOW} -gt ${BLKCOUNTH}"
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
           sleep 2
 
-          DROPBOX_BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
+          BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
           DROPBOX_BOOTSTRAP=$( grep -m 1 'bootstrap=' "${5}" | cut -d '=' -f2 )
-          if [[ ! -z "${DROPBOX_BLOCKS_N_CHAINS}" ]]
+          if [[ ! -z "${BLOCKS_N_CHAINS}" ]]
           then
-            _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_blocks_n_chains force
+            _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_blocks_n_chains force
           elif [ ! -z "${DROPBOX_BOOTSTRAP}" ]
           then
-            _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_bootstrap_reindex
+            _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_bootstrap_reindex
           else
-            _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
+            _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
           fi
 
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
 
           sleep 10
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
-          WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
-          LOCAL_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount )
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps
+          WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+          LOCAL_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount )
           echo "${dt} Local: ${LOCAL_BLK} Remote: ${WEB_BLK}"
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status
         fi
       fi
     fi
     rm -f "${LOCKFILE}"
   )
 
-  elif [ "${ARG9}" == "mncheck" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}check" ]
+  elif [ "${ARG9}" == "mncheck" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}check" ]
   then
   (
-    if [[ -z $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
+    if [[ -z $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid ) ]]
     then
-      echo "ERROR: ${_MASTERNODE_NAME} ${1} is not running"
+      echo "ERROR: ${_GRIDNODE_NAME} ${1} is not running"
     fi
 
-    MN_UPTIME=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime | tr -d '[:space:]' )
-    if [[ "${MN_UPTIME}" -gt 2 ]] && [[ "${MN_UPTIME}" -lt 1000 ]]
+    GN_UPTIME=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" uptime | tr -d '[:space:]' )
+    if [[ "${GN_UPTIME}" -gt 2 ]] && [[ "${GN_UPTIME}" -lt 1000 ]]
     then
-      echo "INFO: ${_MASTERNODE_NAME} ${1} has just been started."
+      echo "INFO: ${_GRIDNODE_NAME} ${1} has just been started."
     fi
 
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" conf | grep -c "${_MASTERNODE_NAME}=1" ) -lt 1 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" conf | grep -c "${_GRIDNODE_NAME}=1" ) -lt 1 ]]
     then
-      echo "ERROR: ${_MASTERNODE_NAME} ${1} is not conifgured to be a ${_MASTERNODE_NAME} (missing ${_MASTERNODE_NAME}=1)."
+      echo "ERROR: ${_GRIDNODE_NAME} ${1} is not conifgured to be a ${_GRIDNODE_NAME} (missing ${_GRIDNODE_NAME}=1)."
     fi
 
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" conf | grep -c "${_MASTERNODE_PRIVKEY}=" ) -lt 1 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" conf | grep -c "${_GRIDNODE_PRIVKEY}=" ) -lt 1 ]]
     then
-      echo "ERROR: ${_MASTERNODE_CALLER} ${1} is not conifgured to be a ${_MASTERNODE_CALLER} (missing ${_MASTERNODE_PRIVKEY}=)."
+      echo "ERROR: ${_GRIDNODE_CALLER} ${1} is not conifgured to be a ${_GRIDNODE_CALLER} (missing ${_GRIDNODE_PRIVKEY}=)."
     fi
 
-    MN_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
-    if [[ $( echo "${MN_STATUS}" | grep -ic 'successfully started' ) -lt 1 ]] || [[ $( echo "${MN_STATUS}" | grep -ic 'started remotely' ) -lt 1 ]]
+    GN_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
+    if [[ $( echo "${GN_STATUS}" | grep -ic 'successfully started' ) -lt 1 ]] || [[ $( echo "${GN_STATUS}" | grep -ic 'started remotely' ) -lt 1 ]]
     then
-      echo "ERROR: ${_MASTERNODE_NAME} ${1} has not started (${_MASTERNODE_NAME} status failed) ${MN_STATUS}."
+      echo "ERROR: ${_GRIDNODE_NAME} ${1} has not started (${_GRIDNODE_NAME} status failed) ${GN_STATUS}."
     fi
 
-    MN_PING_TIME=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_NAME}ping" )
-    if [[ "${MN_PING_TIME}" -gt 1500 ]]
+    GN_PING_TIME=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_NAME}ping" )
+    if [[ "${GN_PING_TIME}" -gt 1500 ]]
     then
-      echo "ERROR: ${_MASTERNODE_NAME} ${1} has not pinged the network in over ${MN_PING_TIME} seconds (debug.log does not have a recent ping)."
+      echo "ERROR: ${_GRIDNODE_NAME} ${1} has not pinged the network in over ${GN_PING_TIME} seconds (debug.log does not have a recent ping)."
     fi
 
-    MN_CONNECTION_COUNT=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount )
-    if [[ ! "${MN_CONNECTION_COUNT}" =~ ${RE} ]] || [[ "${MN_CONNECTION_COUNT}" -lt 4 ]]
+    GN_CONNECTION_COUNT=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount )
+    if [[ ! "${GN_CONNECTION_COUNT}" =~ ${RE} ]] || [[ "${GN_CONNECTION_COUNT}" -lt 4 ]]
     then
-      echo "WARNING: ${_MASTERNODE_NAME} ${1} connection count is low: ${MN_CONNECTION_COUNT}."
+      echo "WARNING: ${_GRIDNODE_NAME} ${1} connection count is low: ${GN_CONNECTION_COUNT}."
     fi
 
-    MN_SYSTEMD=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd )
-    if [[ $( echo "${MN_SYSTEMD}" | grep -c 'enabled active running' ) -lt 1 ]]
+    GN_SYSTEMD=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" checksystemd )
+    if [[ $( echo "${GN_SYSTEMD}" | grep -c 'enabled active running' ) -lt 1 ]]
     then
-      echo "WARNING: ${_MASTERNODE_NAME} ${1} systemd is not in a good state (${MN_SYSTEMD})."
+      echo "WARNING: ${_GRIDNODE_NAME} ${1} systemd is not in a good state (${GN_SYSTEMD})."
     fi
 
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
     then
-      LOCAL_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount )
-      PEER_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
-      WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+      LOCAL_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount )
+      PEER_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+      WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
       WEB_BLK_HIGH=$(( WEB_BLK + EXPLORER_BLOCKCOUNT_OFFSET ))
       WEB_BLK_LOW=$(( WEB_BLK - EXPLORER_BLOCKCOUNT_OFFSET ))
-      echo "WARNING: ${_MASTERNODE_NAME} ${1} blockcount is not correct. Local Count:${LOCAL_BLK}, Network Count:${PEER_BLK}."
+      echo "WARNING: ${_GRIDNODE_NAME} ${1} blockcount is not correct. Local Count:${LOCAL_BLK}, Network Count:${PEER_BLK}."
       echo "Explorer Count:${WEB_BLK}; Explorer Count High:${WEB_BLK_HIGH} Explorer Count Low:${WEB_BLK_LOW}."
     fi
 
-    LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lastblock_time )
+    LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lastblock_time )
     if [[ "${LASTBLOCK}" -gt 1000 ]]
     then
       echo "ERROR: A new block has not been processed in over ${LASTBLOCK} seconds."
     fi
 
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_in_good_state
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_in_good_state
 
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" failure_after_start
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" failure_after_start
 
-    if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_PREFIX}info" | grep -ci 'enabled' ) -lt 1 ]]
+    if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_PREFIX}info" | grep -ci 'enabled' ) -lt 1 ]]
     then
-      echo "ERROR: ${_MASTERNODE_NAME} ${1} is not registered on the network (missing from masternode list)."
+      echo "ERROR: ${_GRIDNODE_NAME} ${1} is not registered on the network (missing from gridnode list)."
     fi
 
-    MN_SYNC=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_PREFIX}sync status" )
-    if [[ $( echo "${MN_SYNC}" | grep -cE ':\s999|"IsBlockchainSynced": true' ) -lt 2 ]]
+    GN_SYNC=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_PREFIX}sync status" )
+    if [[ $( echo "${GN_SYNC}" | grep -cE ':\s999|"IsBlockchainSynced": true' ) -lt 2 ]]
     then
-      echo "WARNING: ${_MASTERNODE_NAME} ${1} mnsync not done (${MN_SYNC})."
+      echo "WARNING: ${_GRIDNODE_NAME} ${1} mnsync not done (${GN_SYNC})."
     fi
 
-    MN_WINNER=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_PREFIX}win" )
-    if [[ ! -z "${MN_WINNER}" ]]
+    GN_WINNER=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_PREFIX}win" )
+    if [[ ! -z "${GN_WINNER}" ]]
     then
       while read -r LINE
       do
         ADDRESS=$( echo "${LINE}" | awk '{print $1}' )
         BLOCK=$( echo "${LINE}" | awk '{print $2}' )
-        echo "SUCCESS: ${_MASTERNODE_NAME} ${1} will send a reward to ${ADDRESS} on block ${BLOCK}."
-      done <<< "$( echo "${MN_WINNER}" | sed '/^[[:space:]]*$/d' )"
+        echo "SUCCESS: ${_GRIDNODE_NAME} ${1} will send a reward to ${ADDRESS} on block ${BLOCK}."
+      done <<< "$( echo "${GN_WINNER}" | sed '/^[[:space:]]*$/d' )"
     fi
   )
 
@@ -5647,8 +5339,8 @@ ${TEMP_FILE}
     echo "${1} will be transformed into ${ARG10}"
     sleep 3
     sudo systemctl disable "${_DAEMON_SYSTEMD_FILENAME}" -f --now
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
-    _NEW_CRONTAB=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}"  crontab -l | sed "s/${1} /${ARG10} /g" )
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+    _NEW_CRONTAB=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}"  crontab -l | sed "s/${1} /${ARG10} /g" )
 
     # Rename contents of systemd service
     sudo sed -i "s/${1}/${ARG10}/g" /etc/systemd/system/"${1}".service
@@ -5680,10 +5372,10 @@ ${TEMP_FILE}
     sed -i "s/${1}$/${ARG10}/g" "${HOME:?}/.bashrc"
 
     sudo systemctl daemon-reload 2>/dev/null
-    if [ -s /etc/apparmor.d/multi-masternode-data ]
+    if [ -s /etc/apparmor.d/multi-gridnode-data ]
     then
       # Rename contents of apparmor conf file.
-      sudo sed -i "s/\\/${1}\\//\\/${ARG10}\\//g" /etc/apparmor.d/multi-masternode-data
+      sudo sed -i "s/\\/${1}\\//\\/${ARG10}\\//g" /etc/apparmor.d/multi-gridnode-data
       sudo systemctl reload apparmor.service
     fi
 
@@ -5773,7 +5465,7 @@ ${TEMP_FILE}
       while read -r IPADDR
       do
         echo "addnode ${IPADDR} add"
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" addnode "${IPADDR}" add
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" addnode "${IPADDR}" add
       done <<< "${WEB_PEERS}"
     elif [[ "${ARG10}" == "conf" ]]
     then
@@ -5784,10 +5476,10 @@ ${TEMP_FILE}
       done <<< "${WEB_PEERS}"
 
       # Restart node if it's running.
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
-        _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+        _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
       fi
     else
       echo "${WEB_PEERS}" | awk '{print "addnode " $1 " add"}'
@@ -5810,7 +5502,7 @@ ${TEMP_FILE}
     WEBBCI=$( wget -4qO- -T 15 -t 2 -o- "${3}api/getblockchaininfo" "${TEMP_VAR_C}" | jq . |  grep -v "verificationprogress" )
     sleep 1
 
-    BCI=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "getblockchaininfo" 2>&1 | grep -v "verificationprogress" )
+    BCI=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "getblockchaininfo" 2>&1 | grep -v "verificationprogress" )
     BCI_DIFF=$( diff <( echo "${BCI}" | jq . ) <( echo "${WEBBCI}" | jq . ) )
     if [[ $( echo "${BCI_DIFF}" | tr -d '[:space:]' | wc -c ) -eq 0 ]]
     then
@@ -5834,15 +5526,15 @@ ${TEMP_FILE}
       then
         WEB_BLK=${ARG10}
       else
-        WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+        WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
       fi
     else
-      WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+      WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
     fi
-    BC=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "getblockcount" 2>&1 )
+    BC=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "getblockcount" 2>&1 )
     if ! [[ $WEB_BLK =~ $RE ]]
     then
-      WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+      WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
     fi
 
     if [[ ! $BC =~ $RE ]]
@@ -5860,12 +5552,12 @@ ${TEMP_FILE}
 
     if [[ "${WEB_BLK_HIGH}" -lt "${BC}" ]] || [[ "${WEB_BLK_LOW}" -gt "${BC}" ]]
     then
-      WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+      WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
       if ! [[ $WEB_BLK =~ $RE ]]
       then
-        WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+        WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
       fi
-      BC=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>&1 )
+      BC=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>&1 )
 
       WEB_BLK_HIGH=$(( WEB_BLK + EXPLORER_BLOCKCOUNT_OFFSET ))
       WEB_BLK_LOW=$(( WEB_BLK - EXPLORER_BLOCKCOUNT_OFFSET ))
@@ -5899,7 +5591,7 @@ ${TEMP_FILE}
   elif [ "${ARG9}" == "getpeerblockcount" ]
   then
   (
-    PEER_INFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo 2>/dev/null )
+    PEER_INFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo 2>/dev/null )
     _BLOCK_COUNT_A=$( echo "${PEER_INFO}" | jq '.[] | select( .banscore < 21 and .synced_headers > 0 ) | .synced_headers ' 2>/dev/null | sort -hr | uniq | head -1 | tr -d '[:space:]'  )
     if [[ ! "${_BLOCK_COUNT_A}" =~ ${RE} ]]
     then
@@ -5920,7 +5612,7 @@ ${TEMP_FILE}
     then
       _BLOCK_COUNT_D=0
     fi
-    _BLOCK_COUNT_E=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lastblock 2>/dev/null )
+    _BLOCK_COUNT_E=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lastblock 2>/dev/null )
     if [[ ! -z "${_BLOCK_COUNT_E}" ]] && [[ "${_BLOCK_COUNT_E}" =~ ${RE} ]] && [[ "${_BLOCK_COUNT_E}" -gt 2000 ]]
     then
       _BLOCK_COUNT_E="$(( _BLOCK_COUNT_E - 1000))"
@@ -5928,22 +5620,22 @@ ${TEMP_FILE}
     echo "${_BLOCK_COUNT_A} ${_BLOCK_COUNT_B} ${_BLOCK_COUNT_C} ${_BLOCK_COUNT_D} ${_BLOCK_COUNT_E}" | jq -s max
   )
 
-  elif [ "${ARG9}" == "getmasternodever" ] || [ "${9}" == "mnver" ] || [ "${9}" == "getmasternodeversion" ] || [ "${9}" == "masternodever" ] || [ "${9}" == "get${_MASTERNODE_NAME}ver" ] || [ "${9}" == "get${_MASTERNODE_NAME}version" ] || [ "${9}" == "${_MASTERNODE_NAME}ver" ] || [ "${9}" == "${_MASTERNODE_PREFIX}ver" ]
+  elif [ "${ARG9}" == "getgridnodever" ] || [ "${9}" == "mnver" ] || [ "${9}" == "getgridnodeversion" ] || [ "${9}" == "gridnodever" ] || [ "${9}" == "get${_GRIDNODE_NAME}ver" ] || [ "${9}" == "get${_GRIDNODE_NAME}version" ] || [ "${9}" == "${_GRIDNODE_NAME}ver" ] || [ "${9}" == "${_GRIDNODE_PREFIX}ver" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_LIST}" |  jq '.[] | "\(.version)"' | sort -hr | uniq -c
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_LIST}" |  jq '.[] | "\(.version)"' | sort -hr | uniq -c
   )
 
   elif [ "${ARG9}" == "getpeerver" ] || [ "${ARG9}" == "getpeerversion" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo | jq '.[] | "\(.version) \(.subver)"' | sort -hr | uniq -c
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo | jq '.[] | "\(.version) \(.subver)"' | sort -hr | uniq -c
   )
 
   elif [ "${ARG9}" == "getpeerblockver" ] || [ "${ARG9}" == "checkpeers" ] || [ "${ARG9}" == "peercheck" ]
   then
   (
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo | jq '.[] | "\(.synced_headers) \(.version) \(.subver)"' | sort -hr | uniq -c
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo | jq '.[] | "\(.synced_headers) \(.version) \(.subver)"' | sort -hr | uniq -c
   )
 
   elif [ "${ARG9}" == "dl_bootstrap" ] || [ "${ARG9}" == "dl_bootstrap_reindex" ]
@@ -5978,7 +5670,7 @@ ${TEMP_FILE}
     # Get new bootstrap code.
     # shellcheck disable=SC2030,SC2031
     PROJECT_DIR=$( echo "${GITHUB_REPO}" | tr '/' '_' )
-    rm -rf "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+    rm -rf "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
     echo "Downloading bootstrap."
 
     if [[ "$( echo "${DROPBOX_BOOTSTRAP}" | grep -cE '^(http|https)://' )" -gt 0 ]]
@@ -6001,15 +5693,15 @@ ${TEMP_FILE}
     sleep 0.6
     echo
 
-    mkdir -p "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+    mkdir -p "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
     if [[ $( echo "${BOOTSTRAP_DEST_FILENAME}" | grep -c '.tar.gz$' ) -eq 1 ]] || [[ $( echo "${BOOTSTRAP_DEST_FILENAME}" | grep -c '.tgz$' ) -eq 1 ]]
     then
       echo "Decompressing gz archive."
       if [[ -x "$( command -v pv )" ]]
       then
-        pv "/tmp/${BOOTSTRAP_DEST_FILENAME}" | tar -xz -C "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap" 2>&1
+        pv "/tmp/${BOOTSTRAP_DEST_FILENAME}" | tar -xz -C "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap" 2>&1
       else
-        tar -xzf "/tmp/${BOOTSTRAP_DEST_FILENAME}" -C "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+        tar -xzf "/tmp/${BOOTSTRAP_DEST_FILENAME}" -C "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
       fi
 
     elif [[ $( echo "${BOOTSTRAP_DEST_FILENAME}" | grep -c '.tar.xz$' ) -eq 1 ]]
@@ -6017,44 +5709,44 @@ ${TEMP_FILE}
       echo "Decompressing xz archive."
       if [[ -x "$( command -v pv )" ]]
       then
-        pv "/tmp/${BOOTSTRAP_DEST_FILENAME}" | tar -xJ -C "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap" 2>&1
+        pv "/tmp/${BOOTSTRAP_DEST_FILENAME}" | tar -xJ -C "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap" 2>&1
       else
-        tar -xJf "/tmp/${BOOTSTRAP_DEST_FILENAME}" -C "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+        tar -xJf "/tmp/${BOOTSTRAP_DEST_FILENAME}" -C "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
       fi
 
     elif [[ $( echo "${BOOTSTRAP_DEST_FILENAME}" | grep -c '.zip$' ) -eq 1 ]]
     then
       echo "Unzipping file."
-      unzip -o "/tmp/${BOOTSTRAP_DEST_FILENAME}" -d "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+      unzip -o "/tmp/${BOOTSTRAP_DEST_FILENAME}" -d "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
 
     elif [[ $( echo "${BOOTSTRAP_DEST_FILENAME}" | grep -c '.rar$' ) -eq 1 ]]
     then
       echo "Unraring file."
-      unrar x "/tmp/${BOOTSTRAP_DEST_FILENAME}" "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+      unrar x "/tmp/${BOOTSTRAP_DEST_FILENAME}" "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
 
     elif [[ $( echo "${BOOTSTRAP_DEST_FILENAME}" | grep -c '.gz$' ) -eq 1 ]]
     then
-      gunzip -c "/tmp/${BOOTSTRAP_DEST_FILENAME}" > "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap/bootstrap.dat"
+      gunzip -c "/tmp/${BOOTSTRAP_DEST_FILENAME}" > "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap/bootstrap.dat"
     fi
 
     rm "/tmp/${BOOTSTRAP_DEST_FILENAME}"
 
-    BOOTSTRAP_DAT_FILE="$( find "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap" -type f -name 'bootstrap.dat' | head -n 1 )"
+    BOOTSTRAP_DAT_FILE="$( find "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap" -type f -name 'bootstrap.dat' | head -n 1 )"
     if [[ -z "${BOOTSTRAP_DAT_FILE}" ]]
     then
       echo "Bootstrap not found in archive."
-      rm -rf "/var/multi-masternode-data/${PROJECT_DIR}/bootstrap"
+      rm -rf "/var/multi-gridnode-data/${PROJECT_DIR}/bootstrap"
       return
     fi
 
     chmod 666 "${BOOTSTRAP_DAT_FILE}"
     stty sane 2>/dev/null
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       echo "Stopping ${1}"
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop >/dev/null 2>&1
     fi
 
     USR_HOME="$( getent passwd "${1}" | cut -d: -f6 )"
@@ -6073,11 +5765,11 @@ ${TEMP_FILE}
     if [ "${ARG9}" == "dl_bootstrap_reindex" ]
     then
       sleep 5
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex "${ARG10}" "${ARG11}"
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex "${ARG10}" "${ARG11}"
     elif [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sleep 5
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
@@ -6085,9 +5777,9 @@ ${TEMP_FILE}
   then
   (
     # shellcheck disable=SC2030,SC2031
-    if [[ -z "${DROPBOX_BLOCKS_N_CHAINS}" ]]
+    if [[ -z "${BLOCKS_N_CHAINS}" ]]
     then
-      DROPBOX_BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
+      BLOCKS_N_CHAINS=$( grep -m 1 'blocks_n_chains=' "${5}" | cut -d '=' -f2 )
     fi
     # shellcheck disable=SC2030,SC2031
     if [[ -z "${GITHUB_REPO}" ]]
@@ -6097,12 +5789,12 @@ ${TEMP_FILE}
 
     if [[ ! -z "${ARG10}" ]] && [[ "${ARG10}" == http* ]]
     then
-      DROPBOX_BLOCKS_N_CHAINS="${ARG10}"
+      BLOCKS_N_CHAINS="${ARG10}"
       # shellcheck disable=SC2030,SC2031
-      rm -rf "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+      rm -rf "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
     fi
 
-    if [[ -z "${DROPBOX_BLOCKS_N_CHAINS}" ]]
+    if [[ -z "${BLOCKS_N_CHAINS}" ]]
     then
       echo
       echo "Blocks and chains source could not be found. Try dl_bootstrap."
@@ -6113,11 +5805,11 @@ ${TEMP_FILE}
     PROJECT_DIR=$( echo "${GITHUB_REPO}" | tr '/' '_' )
     if [[ ! -z "${ARG10}" ]] && [[ "${ARG10}" == "force" ]]
     then
-      rm -rf "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+      rm -rf "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
     fi
 
     UNIX_TIME_LAST=1000
-    DATE_STRING=$( find "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/" -type f -exec stat --format '%Y :%y %n' "{}" \; 2>/dev/null | sort -nr | cut -d: -f2- | head -n 1 | awk '{ print $1 " " $2 " " $3 }' )
+    DATE_STRING=$( find "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/" -type f -exec stat --format '%Y :%y %n' "{}" \; 2>/dev/null | sort -nr | cut -d: -f2- | head -n 1 | awk '{ print $1 " " $2 " " $3 }' )
     if [[ ! -z "${DATE_STRING}" ]]
     then
       UNIX_TIME_LAST=$( date -u --date="${DATE_STRING}" +%s )
@@ -6128,25 +5820,25 @@ ${TEMP_FILE}
     if [[ "${TIME_DIFF}" -gt 259200 ]]
     then
       echo "Get new bootstrap code."
-      rm -rf "/var/multi-masternode-data/${PROJECT_DIR:?}/blocks_n_chains/"
-      mkdir -p "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+      rm -rf "/var/multi-gridnode-data/${PROJECT_DIR:?}/blocks_n_chains/"
+      mkdir -p "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
 
-      if [[ "$( echo "${DROPBOX_BLOCKS_N_CHAINS}" | grep -cE '^(http|https)://' )" -gt 0 ]]
+      if [[ "$( echo "${BLOCKS_N_CHAINS}" | grep -cE '^(http|https)://' )" -gt 0 ]]
       then
-        BLOCKS_N_CHAINS_URL="${DROPBOX_BLOCKS_N_CHAINS}"
+        BLOCKS_N_CHAINS_URL="${BLOCKS_N_CHAINS}"
         BLOCKS_N_CHAINS_DEST_FILENAME="$( basename "${BLOCKS_N_CHAINS_URL}" | cut -d '?' -f1 )"
         BLOCKS_N_CHAINS_DEST_FILENAME="${PROJECT_DIR}.${BLOCKS_N_CHAINS_DEST_FILENAME}"
       else
-        BLOCKS_N_CHAINS_URL="https://www.dropbox.com/s/${DROPBOX_BLOCKS_N_CHAINS}/blocks_n_chains.tar.gz?dl=1"
+        BLOCKS_N_CHAINS_URL="https://www.dropbox.com/s/${BLOCKS_N_CHAINS}/blocks_n_chains.tar.gz?dl=1"
         BLOCKS_N_CHAINS_DEST_FILENAME="${PROJECT_DIR}.blocks_n_chains.tar.gz"
       fi
 
       # shellcheck disable=SC2030,SC2031
       COUNTER=1
-      while [[ $( find "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/" -type f | wc -l ) -lt 5 ]]
+      while [[ $( find "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/" -type f | wc -l ) -lt 5 ]]
       do
-        rm -rf "/var/multi-masternode-data/${PROJECT_DIR:?}/blocks_n_chains/"
-        mkdir -p "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+        rm -rf "/var/multi-gridnode-data/${PROJECT_DIR:?}/blocks_n_chains/"
+        mkdir -p "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
 
         echo "Downloading blocks and chainstate."
         echo "${BLOCKS_N_CHAINS_URL}"
@@ -6164,9 +5856,9 @@ ${TEMP_FILE}
           echo "Decompressing gz archive."
           if [[ -x "$( command -v pv )" ]]
           then
-            pv "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" | tar -xz -C "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains" 2>&1
+            pv "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" | tar -xz -C "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains" 2>&1
           else
-            tar -xzf "/tmp/${PROJECT_DIR}.blocks_n_chains.tar.gz" -C "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+            tar -xzf "/tmp/${PROJECT_DIR}.blocks_n_chains.tar.gz" -C "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
           fi
 
         elif [[ $( echo "${BLOCKS_N_CHAINS_DEST_FILENAME}" | grep -c '.tar.xz$' ) -eq 1 ]]
@@ -6174,29 +5866,29 @@ ${TEMP_FILE}
           echo "Decompressing xz archive."
           if [[ -x "$( command -v pv )" ]]
           then
-            pv "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" | tar -xJ -C "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains" 2>&1
+            pv "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" | tar -xJ -C "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains" 2>&1
           else
-            tar -xJf "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" -C "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+            tar -xJf "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" -C "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
           fi
 
         elif [[ $( echo "${BLOCKS_N_CHAINS_DEST_FILENAME}" | grep -c '.zip$' ) -eq 1 ]]
         then
           echo "Unzipping file."
-          unzip -o "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+          unzip -o "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
 
         elif [[ $( echo "${BLOCKS_N_CHAINS_DEST_FILENAME}" | grep -c '.rar$' ) -eq 1 ]]
         then
           echo "Unraring file."
-          unrar x "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+          unrar x "/tmp/${BLOCKS_N_CHAINS_DEST_FILENAME}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
 
         else
           echo "Decompression program for ${BLOCKS_N_CHAINS_DEST_FILENAME} couldn't be found."
         fi
 
-        BASE_FOLDER="$( find "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains" -type d -name 'blocks' -exec dirname {} + | head -n 1 )"
-        if [[ ! -z "${BASE_FOLDER}" ]] && [[ "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains" != "${BASE_FOLDER}" ]]
+        BASE_FOLDER="$( find "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains" -type d -name 'blocks' -exec dirname {} + | head -n 1 )"
+        if [[ ! -z "${BASE_FOLDER}" ]] && [[ "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains" != "${BASE_FOLDER}" ]]
         then
-          mv "${BASE_FOLDER:?}"/* "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains"
+          mv "${BASE_FOLDER:?}"/* "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains"
           rm -rf "${BASE_FOLDER:?}"
         fi
 
@@ -6214,16 +5906,16 @@ ${TEMP_FILE}
       done
     fi
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
 
     # Clear folder.
@@ -6231,7 +5923,7 @@ ${TEMP_FILE}
     if [[ -d "${DIR}" ]]
     then
       echo "Clear datadir folder ${DIR}."
-      find "${DIR}" -maxdepth 1 | tail -n +2 | grep -vE "backups|wallet.dat|${FILENAME}|${_MASTERNODE_CONF}|peers.dat|debug.log" | xargs rm -rf
+      find "${DIR}" -maxdepth 1 | tail -n +2 | grep -vE "backups|wallet.dat|${FILENAME}|${_GRIDNODE_CONF}|peers.dat|debug.log" | xargs rm -rf
     fi
 
     MOVE_OR_COPY='cp'
@@ -6249,213 +5941,213 @@ ${TEMP_FILE}
     USR_HOME="$( getent passwd "${1}" | cut -d: -f6 )"
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
     then
-      echo "Set permissions in /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains."
-      sudo sh -c "find /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/ -type f -exec chmod 666 {} \\;"
-      sudo sh -c "find /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/ -type d -exec chmod 777 {} \\;"
+      echo "Set permissions in /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains."
+      sudo sh -c "find /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/ -type f -exec chmod 666 {} \\;"
+      sudo sh -c "find /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/ -type d -exec chmod 777 {} \\;"
       sudo mkdir -p "${DIR}"/backups/
 
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/" ]]
       then
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/ to ${DIR}/blocks/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/ to ${DIR}/blocks/"
         sudo mkdir -p "${DIR}/blocks/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"* "${DIR}/blocks/" 2>/dev/null
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"* "${DIR}/blocks/" 2>/dev/null
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/" ]]
       then
         sudo mkdir -p "${DIR}/chainstate/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"* "${DIR}/chainstate/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/ to ${DIR}/chainstate/"
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"* "${DIR}/chainstate/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/ to ${DIR}/chainstate/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/" ]]
       then
         sudo mkdir -p "${DIR}/sporks/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"* "${DIR}/sporks/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/ to ${DIR}/sporks/"
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"* "${DIR}/sporks/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/ to ${DIR}/sporks/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/" ]]
       then
         sudo mkdir -p "${DIR}/zerocoin/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"* "${DIR}/zerocoin/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/ to ${DIR}/zerocoin/"
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"* "${DIR}/zerocoin/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/ to ${DIR}/zerocoin/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/" ]]
       then
         sudo mkdir -p "${DIR}/database/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/"* "${DIR}/database/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/ to ${DIR}/database/"
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/"* "${DIR}/database/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/ to ${DIR}/database/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/" ]]
       then
         sudo mkdir -p "${DIR}/rewards/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"* "${DIR}/rewards/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/ to ${DIR}/rewards/"
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"* "${DIR}/rewards/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/ to ${DIR}/rewards/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/" ]]
       then
         sudo mkdir -p "${DIR}/txleveldb/"
-        sudo touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"* "${DIR}/txleveldb/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/ to ${DIR}/txleveldb/"
+        sudo touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"* "${DIR}/txleveldb/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/ to ${DIR}/txleveldb/"
       fi
 
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/db.log" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/db.log" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/db.log to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/db.log" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/db.log" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/db.log to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/version.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/version.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat to ${DIR}/"
       fi
 
       sudo chown -R "${1}:${1}" "${USR_HOME}/"
     else
-      echo "Set permissions in /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains."
-      find "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/" -type f -exec chmod 666 {} \;
-      find "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/" -type d -exec chmod 777 {} \;
+      echo "Set permissions in /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains."
+      find "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/" -type f -exec chmod 666 {} \;
+      find "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/" -type d -exec chmod 777 {} \;
       mkdir -p "${DIR}"/backups/
 
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/" ]]
       then
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/ to ${DIR}/blocks/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/ to ${DIR}/blocks/"
         mkdir -p "${DIR}/blocks/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"* "${DIR}/blocks/" 2>/dev/null
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blocks/"* "${DIR}/blocks/" 2>/dev/null
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/" ]]
       then
         mkdir -p "${DIR}/chainstate/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"* "${DIR}/chainstate/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/ to ${DIR}/chainstate/"
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/"* "${DIR}/chainstate/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/chainstate/ to ${DIR}/chainstate/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/" ]]
       then
         mkdir -p "${DIR}/sporks/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"* "${DIR}/sporks/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/sporks/ to ${DIR}/sporks/"
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/"* "${DIR}/sporks/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/sporks/ to ${DIR}/sporks/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/" ]]
       then
         mkdir -p "${DIR}/zerocoin/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"* "${DIR}/zerocoin/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/ to ${DIR}/zerocoin/"
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/"* "${DIR}/zerocoin/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/zerocoin/ to ${DIR}/zerocoin/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/" ]]
       then
         mkdir -p "${DIR}/database/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/"* "${DIR}/database/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/database/ to ${DIR}/database/"
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/"* "${DIR}/database/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/database/ to ${DIR}/database/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/" ]]
       then
         mkdir -p "${DIR}/rewards/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"* "${DIR}/rewards/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/rewards/ to ${DIR}/rewards/"
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/"* "${DIR}/rewards/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/rewards/ to ${DIR}/rewards/"
       fi
-      if [[ -d "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/" ]]
+      if [[ -d "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/" ]]
       then
         mkdir -p "${DIR}/txleveldb/"
-        touch -m "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"* "${DIR}/txleveldb/" 2>/dev/null
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/ to ${DIR}/txleveldb/"
+        touch -m "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/"* "${DIR}/txleveldb/" 2>/dev/null
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/ to ${DIR}/txleveldb/"
       fi
 
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/db.log" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/db.log" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/db.log to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/db.log" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/db.log" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/db.log to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mnpayments.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/snpayments.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/budget.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/netfulfilled.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/version.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/version.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/version.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/blk0001.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/governance.dat to ${DIR}/"
       fi
-      if [[ -r "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mempool.dat to ${DIR}/"
       fi
       chown -R "${1}:${1}" "${USR_HOME}/"
     fi
 
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
@@ -6491,10 +6183,10 @@ ${TEMP_FILE}
     echo "${ADDNODE_URL}"
     ADDNODES=$( wget -4qO- -o- "${ADDNODE_URL}" | grep 'addnode=' | shuf )
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" stop
     fi
 
     # Add nodelist to the conf file.
@@ -6510,7 +6202,7 @@ ${TEMP_FILE}
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sleep 5
-      _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+      _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
     fi
   )
 
@@ -6525,14 +6217,14 @@ ${TEMP_FILE}
       DEFAULT_PORT=$(echo "${EXTERNAL_IP}" | cut -d ':' -f2)
     fi
 
-    LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null)
+    LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null)
     if [[ -z "${ARG11}" ]] && [[ ! -z "${3}" ]]
     then
       if [[ ! -z "${ARG10}" ]] && [[ ${ARG10} =~ $RE ]]
       then
         WEB_BLK=${ARG10}
       else
-        WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+        WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
       fi
 
       if [[ ! $WEB_BLK =~ $RE ]]
@@ -6557,7 +6249,7 @@ ${TEMP_FILE}
     ADDNODE_LIST=''
     # shellcheck disable=SC2030,SC2031
     COUNTER=0
-    GETPEERINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo )
+    GETPEERINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo )
     while [[ "${#ADDNODE_LIST}" -lt 10 ]]
     do
       COUNTER=$(( COUNTER + 1 ))
@@ -6600,14 +6292,14 @@ ${TEMP_FILE}
       DEFAULT_PORT=$(echo "${EXTERNAL_IP}" | cut -d ':' -f2)
     fi
 
-    LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null)
+    LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null)
     if [[ -z "${ARG11}" ]] && [[ ! -z "${3}" ]]
     then
       if [[ ! -z "${ARG10}" ]] && [[ ${ARG10} =~ $RE ]]
       then
         WEB_BLK=${ARG10}
       else
-        WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+        WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
       fi
 
       if ! [[ $WEB_BLK =~ $RE ]]
@@ -6632,7 +6324,7 @@ ${TEMP_FILE}
     ADDNODE_LIST=''
     # shellcheck disable=SC2030,SC2031
     COUNTER=0
-    GETPEERINFO=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo )
+    GETPEERINFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerinfo )
     while [[ "${#ADDNODE_LIST}" -lt 10 ]]
     do
       COUNTER=$(( COUNTER + 1 ))
@@ -6664,22 +6356,22 @@ ${TEMP_FILE}
     fi
   )
 
-  elif [ "${ARG9}" == "mnbal" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}bal" ]
+  elif [ "${ARG9}" == "mnbal" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}bal" ]
   then
   (
     # Get txid and output index.
-    MN_WALLET_ADDR=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" mnaddr )
-    if [[ -z "${MN_WALLET_ADDR}" ]]
+    GN_WALLET_ADDR=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" mnaddr )
+    if [[ -z "${GN_WALLET_ADDR}" ]]
     then
       return 1
     fi
-    WEB_BLK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+    WEB_BLK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
     if ! [[ $WEB_BLK =~ $RE ]]
     then
       return 1
     fi
 
-    MASTERNODE_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
+    MASTERNODE_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
     TXID=$( echo "${MASTERNODE_STATUS}" | jq -r .[] | head -n 1 | grep -o -w -E '[[:alnum:]]{64}' )
     OUTPUTIDX=$( echo "${MASTERNODE_STATUS}" | jq '.outputidx' 2>/dev/null | grep -v 'null' )
     if [[ -z "${OUTPUTIDX}" ]]
@@ -6700,7 +6392,7 @@ ${TEMP_FILE}
     then
       OUTPUTIDX_RAW=$( wget -4qO- -T 15 -t 2 -o- "${3}transaction?txid=${TXID}" "${TEMP_VAR_C}" | jq '.result' 2>/dev/null )
       sleep 1
-      MN_WALLET_BALANCE=$( wget -4qO- -T 15 -t 2 -o- "${3}address/balance?address=${MN_WALLET_ADDR}" "${TEMP_VAR_C}" | jq -r ".result[]" 2>/dev/null )
+      GN_WALLET_BALANCE=$( wget -4qO- -T 15 -t 2 -o- "${3}address/balance?address=${GN_WALLET_ADDR}" "${TEMP_VAR_C}" | jq -r ".result[]" 2>/dev/null )
       sleep 1
     else
 
@@ -6747,28 +6439,28 @@ ${TEMP_FILE}
         OUTPUTIDX_RAW=${OUTPUTIDX_RAW_ALT}
       fi
 
-      MN_WALLET_ADDR_DETAILS=$( wget -4qO- -T 15 -t 2 -o- "${3}${EXPLORER_GETADDRESS_PATH}${MN_WALLET_ADDR}" "${TEMP_VAR_C}" )
-      MN_WALLET_BALANCE=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".balance" 2>/dev/null )
-      if [[ ! "${MN_WALLET_BALANCE}" =~ ^[0-9]+([.][0-9]+)?$ ]]
+      GN_WALLET_ADDR_DETAILS=$( wget -4qO- -T 15 -t 2 -o- "${3}${EXPLORER_GETADDRESS_PATH}${GN_WALLET_ADDR}" "${TEMP_VAR_C}" )
+      GN_WALLET_BALANCE=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".balance" 2>/dev/null )
+      if [[ ! "${GN_WALLET_BALANCE}" =~ ^[0-9]+([.][0-9]+)?$ ]]
       then
-        MN_WALLET_BALANCE=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".data" 2>/dev/null )
+        GN_WALLET_BALANCE=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".data" 2>/dev/null )
       fi
-      if [[ ! "${MN_WALLET_BALANCE}" =~ ^[0-9]+([.][0-9]+)?$ ]]
+      if [[ ! "${GN_WALLET_BALANCE}" =~ ^[0-9]+([.][0-9]+)?$ ]]
       then
-        MN_WALLET_BALANCE=${MN_WALLET_ADDR_DETAILS}
+        GN_WALLET_BALANCE=${GN_WALLET_ADDR_DETAILS}
       fi
-      MN_WALLET_BALANCE=$( echo "${MN_WALLET_BALANCE} / ${EXPLORER_AMOUNT_ADJUST}" | bc )
+      GN_WALLET_BALANCE=$( echo "${GN_WALLET_BALANCE} / ${EXPLORER_AMOUNT_ADJUST}" | bc )
       sleep 1
     fi
-    MN_WALLET_TX_COLLATERAL=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq ".vout[] | select( (.n)|tonumber == ${OUTPUTIDX} ) | .value " )
-    UNLOCKED=$( echo "${MN_WALLET_BALANCE} - ${MN_WALLET_TX_COLLATERAL}" | bc )
-    echo "Balance:${MN_WALLET_BALANCE} Locked:${MN_WALLET_TX_COLLATERAL} Unlocked:${UNLOCKED}"
+    GN_WALLET_TX_COLLATERAL=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq ".vout[] | select( (.n)|tonumber == ${OUTPUTIDX} ) | .value " )
+    UNLOCKED=$( echo "${GN_WALLET_BALANCE} - ${GN_WALLET_TX_COLLATERAL}" | bc )
+    echo "Balance:${GN_WALLET_BALANCE} Locked:${GN_WALLET_TX_COLLATERAL} Unlocked:${UNLOCKED}"
   )
 
   elif [ "${ARG9}" == "getlockedbalance" ] || ([ "${ARG9}" == "getbalance" ] && [ "${ARG10}" == "locked" ])
   then
   (
-    LOCKED_COINS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" listlockunspent )
+    LOCKED_COINS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" listlockunspent )
     HASHES_LOCKED=''
     if [[ "${#LOCKED_COINS}" -gt 63 ]]
     then
@@ -6792,13 +6484,13 @@ ${TEMP_FILE}
     fi
 
     HASHES_MASTERNODE=''
-    MN_COLLATERAL=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"outputs )
-    if [[ "${#MN_COLLATERAL}" -gt 63 ]]
+    GN_COLLATERAL=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"outputs )
+    if [[ "${#GN_COLLATERAL}" -gt 63 ]]
     then
-      HASHES_MASTERNODE=$( echo "${MN_COLLATERAL}" | jq -r '.[] | [.txhash,.outputidx] | "\(.[0]) \(.[1])"' 2>/dev/null )
+      HASHES_MASTERNODE=$( echo "${GN_COLLATERAL}" | jq -r '.[] | [.txhash,.outputidx] | "\(.[0]) \(.[1])"' 2>/dev/null )
       if [[ "${#HASHES_MASTERNODE}" -lt 63 ]]
       then
-        HASHES_MASTERNODE=$( echo "${MN_COLLATERAL}" | jq -r '.[] | [.txid,.vout] | "\(.[0]) \(.[1])"' 2>/dev/null )
+        HASHES_MASTERNODE=$( echo "${GN_COLLATERAL}" | jq -r '.[] | [.txid,.vout] | "\(.[0]) \(.[1])"' 2>/dev/null )
       fi
       if [[ "${#HASHES_MASTERNODE}" -lt 63 ]]
       then
@@ -6809,7 +6501,7 @@ ${TEMP_FILE}
           OUTPUTIDX=$( echo "${LINE}" | grep -w -E -m 1 '[[:alnum:]]{64}' | grep -o ':.*' | grep -o '[0-9]*' )
           HASHES_MASTERNODE="${HASHES_MASTERNODE}
             ${TXID} ${OUTPUTIDX}"
-        done <<< "${MN_COLLATERAL}"
+        done <<< "${GN_COLLATERAL}"
         HASHES_MASTERNODE=$( echo "${HASHES_MASTERNODE}" | grep -E '[[:alnum:]]{64}' )
       fi
     fi
@@ -6822,7 +6514,7 @@ ${TEMP_FILE}
       then
         continue
       fi
-      LOCKED_VALUE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getrawtransaction "${TXID}" 1  | jq ".vout | .[] | select( .n == ${OUTPUTIDX} ) | .value" )
+      LOCKED_VALUE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getrawtransaction "${TXID}" 1  | jq ".vout | .[] | select( .n == ${OUTPUTIDX} ) | .value" )
 
       SUM=$(( LOCKED_VALUE + SUM ))
     done <<< "${HASHES}"
@@ -6832,12 +6524,12 @@ ${TEMP_FILE}
   elif [ "${ARG9}" == "getunlockedbalance" ] || ([ "${ARG9}" == "getbalance" ] && [ "${ARG10}" == "unlocked" ])
   then
   (
-    BALANCE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
+    BALANCE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
     if [[ $(echo "${BALANCE} > 0" | bc -l ) -eq 0 ]]
     then
       return 0
     fi
-    LOCKED_BALANCE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getlockedbalance )
+    LOCKED_BALANCE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getlockedbalance )
     UNLOCKED_BALANCE=$( echo "${BALANCE} - ${LOCKED_BALANCE}" | bc -l )
     echo "${UNLOCKED_BALANCE}"
   )
@@ -6845,20 +6537,20 @@ ${TEMP_FILE}
   elif [ "${ARG9}" == "getstakeinputsbalance" ] || ([ "${ARG9}" == "liststakeinputs" ] && [ "${ARG10}" == "balance" ])
   then
   (
-    STAKING_BALANCE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" liststakeinputs | jq '.[].amount' | awk '{s+=$1} END {print s}' )
+    STAKING_BALANCE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" liststakeinputs | jq '.[].amount' | awk '{s+=$1} END {print s}' )
     echo "${STAKING_BALANCE}"
   )
 
-  elif [ "${ARG9}" == "mnlock" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}lock" ]
+  elif [ "${ARG9}" == "mnlock" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}lock" ]
   then
   (
-    MN_OUTPUTS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"outputs )
-    if [[ "${#MN_OUTPUTS}" -lt 63 ]]
+    GN_OUTPUTS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"outputs )
+    if [[ "${#GN_OUTPUTS}" -lt 63 ]]
     then
       return
     fi
 
-    HASHES=$( echo "${MN_OUTPUTS}" |  jq -r '.[] | [.txhash,.outputidx] | "\(.[0]) \(.[1])"' 2>/dev/null )
+    HASHES=$( echo "${GN_OUTPUTS}" |  jq -r '.[] | [.txhash,.outputidx] | "\(.[0]) \(.[1])"' 2>/dev/null )
     if [[ "${#HASHES}" -lt 63 ]]
     then
       HASHES=''
@@ -6868,7 +6560,7 @@ ${TEMP_FILE}
         OUTPUTIDX=$( echo "${LINE}" | grep -w -E -m 1 '[[:alnum:]]{64}' | grep -o ':.*' | grep -o '[0-9]*' )
         HASHES="${HASHES}
 ${TXID} ${OUTPUTIDX}"
-      done <<< "${MN_OUTPUTS}"
+      done <<< "${GN_OUTPUTS}"
       HASHES=$( echo "${HASHES}" | grep -E '[[:alnum:]]{64}' )
     fi
 
@@ -6887,16 +6579,16 @@ ${TXID} ${OUTPUTIDX}"
       JSON="${JSON}{\"\\\"txid\\\"\":\"\\\"${TXID}\\\"\"\\,\"\\\"vout\\\"\":\"${OUTPUTIDX}\"}${EXTRA}"
     done <<< "${HASHES}"
     JSON="${JSON}]"
-    _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lockunspent false "${JSON}"
+    _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" lockunspent false "${JSON}"
   )
 
-  elif [ "${ARG9}" == "mnstatus" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}status" ]
+  elif [ "${ARG9}" == "mnstatus" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}status" ]
   then
   (
-    MASTERNODE_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
+    MASTERNODE_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
     if [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "method not found" ) -gt 0 ]]
     then
-      MASTERNODE_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"debug )
+      MASTERNODE_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"debug )
     fi
     JSON_ERROR=$( echo "${MASTERNODE_STATUS}" | jq . 2>&1 >/dev/null )
     if [ -z "${JSON_ERROR}" ]
@@ -6910,17 +6602,17 @@ ${TXID} ${OUTPUTIDX}"
   elif [ "${ARG9}" == "useful" ]
   then
   (
-    DAEMON_BALANCE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
+    DAEMON_BALANCE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getbalance )
     if [[ "${DAEMON_BALANCE}" != 0 ]] && [[ "${DAEMON_BALANCE}" =~ $RE_FLOAT ]]
     then
       echo "${DAEMON_BALANCE}"
     else
-      MASTERNODE_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" mnstatus )
+      MASTERNODE_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" mnstatus )
       echo "${MASTERNODE_STATUS}"
     fi
   )
 
-  elif [ "${ARG9}" == "mninfo" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}info" ]
+  elif [ "${ARG9}" == "mninfo" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}info" ]
   then
   (
     if [[ ! -z "${ARG10}" ]] && [[ ! -z "${ARG11}" ]]
@@ -6929,8 +6621,8 @@ ${TXID} ${OUTPUTIDX}"
       OUTPUTIDX="${ARG11}"
     else
       sleep 0.1
-      MASTERNODE_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
-      if [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_MASTERNODE_NAME} successfully started" ) -ge 1 ]] || [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_MASTERNODE_NAME} started remotely" ) -ge 1 ]]
+      MASTERNODE_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
+      if [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_GRIDNODE_NAME} successfully started" ) -ge 1 ]] || [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_GRIDNODE_NAME} started remotely" ) -ge 1 ]]
       then
         # Get collateral info.
         TXID=$( echo "${MASTERNODE_STATUS}" | jq -r .[] 2>/dev/null | head -n 1 | grep -o -w -E '[[:alnum:]]{64}' )
@@ -6951,7 +6643,7 @@ ${TXID} ${OUTPUTIDX}"
       if [[ -z "${TXID}" ]] || [[ -z "${OUTPUTIDX}" ]]
       then
         sleep 0.2
-        MASTERNODE_OUTPUTS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"outputs )
+        MASTERNODE_OUTPUTS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"outputs )
         TXID=$( echo "${MASTERNODE_OUTPUTS}" | jq -r ".[0].txhash" 2>/dev/null | grep -o -w -E '[[:alnum:]]{64}' )
         OUTPUTIDX=$( echo "${MASTERNODE_OUTPUTS}" | jq -r ".[0].outputidx" 2>/dev/null )
         if [[ -z "${TXID}" ]] || [[ -z "${OUTPUTIDX}" ]]
@@ -6964,52 +6656,52 @@ ${TXID} ${OUTPUTIDX}"
 
     if [[ ! -z "${TXID}" ]] && [[ ! -z "${OUTPUTIDX}" ]]
     then
-      # Get masternode list info.
+      # Get gridnode list info.
       sleep 0.3
-      MASTERNODE_LIST=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_LIST}" )
-      LIST_STATUS=$( echo "${MASTERNODE_LIST}" | jq ".[] | select( .txhash == \"$TXID\" and .outidx == $OUTPUTIDX )" 2>/dev/null )
+      GRIDNODE_LIST=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_LIST}" )
+      LIST_STATUS=$( echo "${GRIDNODE_LIST}" | jq ".[] | select( .txhash == \"$TXID\" and .outidx == $OUTPUTIDX )" 2>/dev/null )
       if [[ -z "${LIST_STATUS}" ]]
       then
-        LIST_STATUS=$( echo "${MASTERNODE_LIST}" | jq ".[] | select( .txhash == \"$TXID\" )" 2>/dev/null )
+        LIST_STATUS=$( echo "${GRIDNODE_LIST}" | jq ".[] | select( .txhash == \"$TXID\" )" 2>/dev/null )
       fi
       if [[ -z "${LIST_STATUS}" ]]
       then
         sleep 0.4
-        if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_LIST}" help | grep -ic 'json' ) -gt 0 ]]
+        if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_LIST}" help | grep -ic 'json' ) -gt 0 ]]
         then
           sleep 0.5
-          MASTERNODE_LIST_JSON=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_LIST}" json )
-          LIST_STATUS=$( echo "${MASTERNODE_LIST_JSON}" | jq ".[\"${TXID}-${OUTPUTIDX}\"]" 2>/dev/null )
+          GRIDNODE_LIST_JSON=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_LIST}" json )
+          LIST_STATUS=$( echo "${GRIDNODE_LIST_JSON}" | jq ".[\"${TXID}-${OUTPUTIDX}\"]" 2>/dev/null )
         fi
       fi
       if [[ -z "${LIST_STATUS}" ]]
       then
-        LIST_STATUS=$( echo "$MASTERNODE_LIST_JSON}" | jq ".[keys[] | select(contains(\"${TXID}\"))]" 2>/dev/null )
+        LIST_STATUS=$( echo "$GRIDNODE_LIST_JSON}" | jq ".[keys[] | select(contains(\"${TXID}\"))]" 2>/dev/null )
       fi
       if [[ -z "${LIST_STATUS}" ]]
       then
         sleep 0.6
-        MASTERNODE_LIST_ALL=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_LIST}" full )
-        LIST_STATUS=$( echo "${MASTERNODE_LIST_ALL}" | grep "${TXID}-${OUTPUTIDX}"  2>/dev/null )
+        GRIDNODE_LIST_ALL=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_LIST}" full )
+        LIST_STATUS=$( echo "${GRIDNODE_LIST_ALL}" | grep "${TXID}-${OUTPUTIDX}"  2>/dev/null )
         if [[ -z "${LIST_STATUS}" ]]
         then
-          LIST_STATUS=$( echo "${MASTERNODE_LIST}" | grep "${TXID}-${OUTPUTIDX}"  2>/dev/null )
+          LIST_STATUS=$( echo "${GRIDNODE_LIST}" | grep "${TXID}-${OUTPUTIDX}"  2>/dev/null )
         fi
       fi
       if [[ -z "${LIST_STATUS}" ]]
       then
-        LIST_STATUS=$( echo "${MASTERNODE_LIST_ALL}" | grep "${TXID}, ${OUTPUTIDX}"  2>/dev/null )
+        LIST_STATUS=$( echo "${GRIDNODE_LIST_ALL}" | grep "${TXID}, ${OUTPUTIDX}"  2>/dev/null )
         if [[ -z "${LIST_STATUS}" ]]
         then
-          LIST_STATUS=$( echo "${MASTERNODE_LIST}" | grep "${TXID}, ${OUTPUTIDX}"  2>/dev/null )
+          LIST_STATUS=$( echo "${GRIDNODE_LIST}" | grep "${TXID}, ${OUTPUTIDX}"  2>/dev/null )
         fi
       fi
       if [[ -z "${LIST_STATUS}" ]]
       then
-        LIST_STATUS=$( echo "${MASTERNODE_LIST_ALL}" | grep "${TXID}"  2>/dev/null )
+        LIST_STATUS=$( echo "${GRIDNODE_LIST_ALL}" | grep "${TXID}"  2>/dev/null )
         if [[ -z "${LIST_STATUS}" ]]
         then
-          LIST_STATUS=$( echo "${MASTERNODE_LIST}" | grep "${TXID}"  2>/dev/null )
+          LIST_STATUS=$( echo "${GRIDNODE_LIST}" | grep "${TXID}"  2>/dev/null )
         fi
       fi
 
@@ -7024,67 +6716,67 @@ ${TXID} ${OUTPUTIDX}"
     fi
   )
 
-  elif [ "${ARG9}" == "mnaddr" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}addr" ]
+  elif [ "${ARG9}" == "mnaddr" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}addr" ]
   then
   (
-    MASTERNODE_STATUS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"status )
-    if [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_MASTERNODE_NAME} successfully started" ) -ge 1 ]] || [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_MASTERNODE_NAME} started remotely" ) -ge 1 ]]
+    MASTERNODE_STATUS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"status )
+    if [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_GRIDNODE_NAME} successfully started" ) -ge 1 ]] || [[ $( echo "${MASTERNODE_STATUS}" | grep -ic "${_GRIDNODE_NAME} started remotely" ) -ge 1 ]]
     then
-      MN_ADDR=$( echo "${MASTERNODE_STATUS}" | jq -r ".addr" 2>/dev/null )
-      if [[ -z "${MN_ADDR}" ]] || [[ "${MN_ADDR}" == "null" ]]
+      GN_ADDR=$( echo "${MASTERNODE_STATUS}" | jq -r ".addr" 2>/dev/null )
+      if [[ -z "${GN_ADDR}" ]] || [[ "${GN_ADDR}" == "null" ]]
       then
-        MN_ADDR=$( echo "${MASTERNODE_STATUS}" | jq -r ".pubkey" 2>/dev/null )
+        GN_ADDR=$( echo "${MASTERNODE_STATUS}" | jq -r ".pubkey" 2>/dev/null )
       fi
-      if [[ -z "${MN_ADDR}" ]] || [[ "${MN_ADDR}" == "null" ]]
+      if [[ -z "${GN_ADDR}" ]] || [[ "${GN_ADDR}" == "null" ]]
       then
-        MN_ADDR=$( echo "${MASTERNODE_STATUS}" | jq -r ".payee" 2>/dev/null )
+        GN_ADDR=$( echo "${MASTERNODE_STATUS}" | jq -r ".payee" 2>/dev/null )
       fi
-      echo "${MN_ADDR}"
+      echo "${GN_ADDR}"
     fi
   )
 
-  elif [ "${ARG9}" == "mnwin" ] || [ "${ARG9}" == "${_MASTERNODE_PREFIX}win" ]
+  elif [ "${ARG9}" == "mnwin" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}win" ]
   then
   (
-    # Get masternode address.
+    # Get gridnode address.
     if [[ -z "${ARG10}" ]]
     then
-      MN_ADDR=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_PREFIX}addr" )
+      GN_ADDR=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_PREFIX}addr" )
     else
-      MN_ADDR=${ARG10}
+      GN_ADDR=${ARG10}
     fi
 
-    # Return if no masternode address.
-    if [[ -z "${MN_ADDR}" ]]
+    # Return if no gridnode address.
+    if [[ -z "${GN_ADDR}" ]]
     then
       return
     fi
 
-    # Return if no masternode winners does not contain masternode address.
-    MASTERNODE_WINNERS=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_MASTERNODE_CALLER}"winners | sed 's/: " /: "/g' )
-    if [[ $( echo "${MASTERNODE_WINNERS}" | grep -cF "${MN_ADDR}" ) -lt 1 ]]
+    # Return if no gridnode winners does not contain gridnode address.
+    MASTERNODE_WINNERS=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" "${_GRIDNODE_CALLER}"winners | sed 's/: " /: "/g' )
+    if [[ $( echo "${MASTERNODE_WINNERS}" | grep -cF "${GN_ADDR}" ) -lt 1 ]]
     then
       return
     fi
 
-    # Get masternode winner and block height.
-    MN_WINNER=$( echo "${MASTERNODE_WINNERS}" | jq ".[]" )
+    # Get gridnode winner and block height.
+    GN_WINNER=$( echo "${MASTERNODE_WINNERS}" | jq ".[]" )
 
     OUTPUT=''
     # Pivx Syntax.
     while read -r BLK
     do
-      BLK_WINNERS=$( echo "${MN_WINNER}" | jq "select ( .nHeight == ${BLK} ) " 2>/dev/null )
-      if [[ $( echo "${BLK_WINNERS}" | jq '.winner | max_by( .nVotes )' 2>/dev/null | grep -c "${MN_ADDR}" ) -gt 0 ]]
+      BLK_WINNERS=$( echo "${GN_WINNER}" | jq "select ( .nHeight == ${BLK} ) " 2>/dev/null )
+      if [[ $( echo "${BLK_WINNERS}" | jq '.winner | max_by( .nVotes )' 2>/dev/null | grep -c "${GN_ADDR}" ) -gt 0 ]]
       then
-        OUTPUT=$( echo -e "${OUTPUT}\\n${MN_ADDR} ${BLK}" )
+        OUTPUT=$( echo -e "${OUTPUT}\\n${GN_ADDR} ${BLK}" )
         continue
       fi
-      if [[ $( echo "${BLK_WINNERS}" | jq '.winner' 2>/dev/null | grep -c "${MN_ADDR}" ) -gt 0 ]]
+      if [[ $( echo "${BLK_WINNERS}" | jq '.winner' 2>/dev/null | grep -c "${GN_ADDR}" ) -gt 0 ]]
       then
-        OUTPUT=$( echo -e "${OUTPUT}\\n${MN_ADDR} ${BLK}" )
+        OUTPUT=$( echo -e "${OUTPUT}\\n${GN_ADDR} ${BLK}" )
       fi
-    done <<< "$( echo "${MN_WINNER}" | jq ".nHeight" 2>/dev/null  )"
+    done <<< "$( echo "${GN_WINNER}" | jq ".nHeight" 2>/dev/null  )"
 
     # Dash syntax.
     if [[ -z "${OUTPUT}" ]] || [[ ! ${OUTPUT} =~ ${RE} ]]
@@ -7093,27 +6785,27 @@ ${TXID} ${OUTPUTIDX}"
       do
         if [[ $( echo "${MASTERNODE_WINNERS}" | grep "${BLK}" | tr -d -c ',' | wc -c ) -eq 1 ]]
         then
-          OUTPUT=$( echo -e "${OUTPUT}\\n${MN_ADDR} ${BLK}" )
+          OUTPUT=$( echo -e "${OUTPUT}\\n${GN_ADDR} ${BLK}" )
         else
-          if [[ $( echo "${MASTERNODE_WINNERS}" | grep "${BLK}" | awk '{first = $1; $1 = ""; print $0}' | tr ',' '\n' | tr -d '"' | tr ':' ' ' | awk '{print $2 " " $1}' | sort -hr | head -n 1 | grep -c "${MN_ADDR}" ) -gt 0 ]]
+          if [[ $( echo "${MASTERNODE_WINNERS}" | grep "${BLK}" | awk '{first = $1; $1 = ""; print $0}' | tr ',' '\n' | tr -d '"' | tr ':' ' ' | awk '{print $2 " " $1}' | sort -hr | head -n 1 | grep -c "${GN_ADDR}" ) -gt 0 ]]
           then
-            OUTPUT=$( echo -e "${OUTPUT}\\n${MN_ADDR} ${BLK}" )
+            OUTPUT=$( echo -e "${OUTPUT}\\n${GN_ADDR} ${BLK}" )
           fi
         fi
-      done <<< "$( echo "${MASTERNODE_WINNERS}" | grep "${MN_ADDR}" | grep -o '"[0-9]*"' | grep -o '[0-9]*' 2>/dev/null )"
+      done <<< "$( echo "${MASTERNODE_WINNERS}" | grep "${GN_ADDR}" | grep -o '"[0-9]*"' | grep -o '[0-9]*' 2>/dev/null )"
     fi
 
     # Smartnode syntax.
     if [[ -z "${OUTPUT}" ]] || [[ ! ${OUTPUT} =~ ${RE} ]]
     then
-      MN_WINNER=$( echo "${MASTERNODE_WINNERS}" | grep -vi 'norewardblock' | head -n -2 2>/dev/null )
+      GN_WINNER=$( echo "${MASTERNODE_WINNERS}" | grep -vi 'norewardblock' | head -n -2 2>/dev/null )
       while read -r BLK
       do
-        if [[ $( echo "$MN_WINNER }}" | jq ".[\"${BLK}\"].votes.${MN_ADDR}" 2>/dev/null ) =~ ${RE} ]]
+        if [[ $( echo "$GN_WINNER }}" | jq ".[\"${BLK}\"].votes.${GN_ADDR}" 2>/dev/null ) =~ ${RE} ]]
         then
-          OUTPUT=$( echo -e "${OUTPUT}\\n${MN_ADDR} ${BLK}" )
+          OUTPUT=$( echo -e "${OUTPUT}\\n${GN_ADDR} ${BLK}" )
         fi
-      done <<< "$( echo "$MN_WINNER }}" | jq -r 'keys[]' 2>/dev/null )"
+      done <<< "$( echo "$GN_WINNER }}" | jq -r 'keys[]' 2>/dev/null )"
     fi
     echo "${OUTPUT}" | sed '/^[[:space:]]*$/d'
   )
@@ -7140,7 +6832,7 @@ ${TXID} ${OUTPUTIDX}"
     if ! [[ ${BLOCKCOUNT_FALLBACK_VALUE} =~ ${RE} ]] || [[ -z "${BLOCKCOUNT_FALLBACK_VALUE}" ]]
     then
       echo "Getting the block count from the network"
-      BLOCKCOUNT_FALLBACK_VALUE=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+      BLOCKCOUNT_FALLBACK_VALUE=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
       if [[ "${#BLOCKCOUNT_FALLBACK_VALUE}" -gt 1 ]]
       then
         echo "${BLOCKCOUNT_FALLBACK_VALUE}"
@@ -7154,7 +6846,7 @@ ${TXID} ${OUTPUTIDX}"
 
     # Get block count from the explorer.
     echo "Getting the block count from the explorer."
-    WEBBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
+    WEBBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" explorer_blockcount )
     echo "${WEBBLOCK}"
     if ! [[ ${WEBBLOCK} =~ ${RE} ]]
     then
@@ -7170,7 +6862,7 @@ ${TXID} ${OUTPUTIDX}"
     fi
     stty sane 2>/dev/null
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sudo -n renice 10 -p "${TEMP_VAR_PID}"
@@ -7185,29 +6877,29 @@ ${TXID} ${OUTPUTIDX}"
     echo "Initializing blocks, the faster the CPU that faster this goes."
     echo
 
-    DAEMON_LOG=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log loc )
+    DAEMON_LOG=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log loc )
     if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
     then
       CONNECTIONCOUNT=$( sudo ss -nptu -o state established 2>/dev/null | grep -c "pid=${TEMP_VAR_PID}" | tr -d '\040\011\012\015' )
     else
-      PORT_FOR_DAEMON=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" port | grep -o '[0-9]*' )
+      PORT_FOR_DAEMON=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" port | grep -o '[0-9]*' )
       CONNECTIONCOUNT=$( ss -nptu -o state established 2>/dev/null | awk '{print $5}' | grep -c ":${PORT_FOR_DAEMON}" | tr -d '\040\011\012\015' )
     fi
     # If connectioncount is not a number set it to 0.
     if ! [[ $CONNECTIONCOUNT =~ $RE ]]
     then
-      CONNECTIONCOUNT=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount 2>/dev/null )
+      CONNECTIONCOUNT=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount 2>/dev/null )
       if ! [[ $CONNECTIONCOUNT =~ $RE ]]
       then
         CONNECTIONCOUNT=0;
       fi
     fi
 
-    LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 200 | tac | grep -m1 -o 'height=[[:digit:]]*' | cut -d '=' -f2 | head -n 1 | tr -d '\040\011\012\015' )
+    LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 200 | tac | grep -m1 -o 'height=[[:digit:]]*' | cut -d '=' -f2 | head -n 1 | tr -d '\040\011\012\015' )
     # If blockcount is not a number set it to 0.
     if [[ ! ${LASTBLOCK} =~ ${RE} ]] || [[ -z ${LASTBLOCK} ]]
     then
-      LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null )
+      LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null )
       if ! [[ ${LASTBLOCK} =~ ${RE} ]]
       then
         LASTBLOCK=0
@@ -7236,20 +6928,20 @@ ${TXID} ${OUTPUTIDX}"
     while :
     do
       # Auto restart if daemon dies.
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ -z "${TEMP_VAR_PID}" ]]
       then
         if [[ "${START_COUNTER}" -eq 2 ]]
         then
           START_COUNTER=$(( START_COUNTER + 1 ))
           echo "Starting the daemon with -reindex."
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
         else
           START_COUNTER=$(( START_COUNTER + 1 ))
           echo "Starting the daemon again."
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" start
           sleep 15
-          TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+          TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
           if [[ ! -z "${TEMP_VAR_PID}" ]]
           then
             sudo -n renice 10 -p "${TEMP_VAR_PID}" >/dev/null 2>&1
@@ -7259,31 +6951,31 @@ ${TXID} ${OUTPUTIDX}"
 
       if [[ -z ${DAEMON_LOG} ]]
       then
-        DAEMON_LOG=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log loc )
+        DAEMON_LOG=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log loc )
       fi
 
       if [[ ${CAN_SUDO} =~ ${RE} ]] && [[ "${CAN_SUDO}" -gt 2 ]]
       then
         CONNECTIONCOUNT=$( sudo ss -nptu -o state established 2>/dev/null | grep -c "pid=${TEMP_VAR_PID}" | tr -d '\040\011\012\015' )
       else
-        PORT_FOR_DAEMON=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" port | grep -o '[0-9]*' )
+        PORT_FOR_DAEMON=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" port | grep -o '[0-9]*' )
         CONNECTIONCOUNT=$( ss -nptu -o state established 2>/dev/null | awk '{print $5}' | grep -c ":${PORT_FOR_DAEMON}" | tr -d '\040\011\012\015' )
       fi
       # If connectioncount is not a number set it to 0.
       if ! [[ $CONNECTIONCOUNT =~ $RE ]]
       then
-        CONNECTIONCOUNT=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount 2>/dev/null )
+        CONNECTIONCOUNT=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getconnectioncount 2>/dev/null )
         if ! [[ $CONNECTIONCOUNT =~ $RE ]]
         then
           CONNECTIONCOUNT=0;
         fi
       fi
 
-      LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 200 | tac | grep -m1 -o 'height=[[:digit:]]*' | cut -d '=' -f2 | head -n 1 | tr -d '\040\011\012\015' )
+      LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 200 | tac | grep -m1 -o 'height=[[:digit:]]*' | cut -d '=' -f2 | head -n 1 | tr -d '\040\011\012\015' )
       # If blockcount is not a number set it to 0.
       if [[ ! ${LASTBLOCK} =~ ${RE} ]] || [[ -z ${LASTBLOCK} ]]
       then
-        LASTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null )
+        LASTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null )
         if ! [[ ${LASTBLOCK} =~ ${RE} ]]
         then
           LASTBLOCK=0
@@ -7292,7 +6984,7 @@ ${TXID} ${OUTPUTIDX}"
 
       if [[ "${WEBBLOCK}" -eq 0 ]] && [[ "${CONNECTIONCOUNT}" -gt 1 ]]
       then
-        PEER_BLOCK_COUNT=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+        PEER_BLOCK_COUNT=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
         if [[ ${PEER_BLOCK_COUNT} =~ ${RE} ]]
         then
           WEBBLOCK=${PEER_BLOCK_COUNT}
@@ -7305,11 +6997,11 @@ ${TXID} ${OUTPUTIDX}"
       while [ ${END} -gt 0 ];
       do
         END=$(( END - 1 ))
-        CURRENTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 200 | tac | grep -m1 -o 'height=[[:digit:]]*' | cut -d '=' -f2 | head -n 1 | tr -d '\040\011\012\015' )
+        CURRENTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 200 | tac | grep -m1 -o 'height=[[:digit:]]*' | cut -d '=' -f2 | head -n 1 | tr -d '\040\011\012\015' )
         # If blockcount is not a number set it to 0.
         if [[ ! ${CURRENTBLOCK} =~ ${RE} ]] || [[ -z ${CURRENTBLOCK} ]]
         then
-          CURRENTBLOCK=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null )
+          CURRENTBLOCK=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getblockcount 2>/dev/null )
           if ! [[ ${CURRENTBLOCK} =~ ${RE} ]]
           then
             CURRENTBLOCK=0
@@ -7328,20 +7020,20 @@ ${TXID} ${OUTPUTIDX}"
 
           if [[ -z "${TEMP_VAR_PID}" ]]
           then
-            TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+            TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
           fi
           PS_LINES=$( echo -e "\\n No Process Info ${TEMP_VAR_PID} \\n \\n" )
           if [[ "${#TEMP_VAR_PID}" -gt 1 ]]
           then
             PS_LINES=''
-            PS_LINES="$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps-short )"
+            PS_LINES="$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" ps-short )"
           fi
 
           # Generate lines
           LOG_LINES="$( echo -e " \\n \\n \\n \\n \\n" )"
           if [[ -r "${DAEMON_LOG}" ]]
           then
-            LOG_LINES="$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 5 | awk '{ printf substr($2,7,2); $1=$2=""; print $0}' | sed 's/ \+ / /g' | sed 's/best\=.\{65\}//g' | tr -cd "[:print:]\n" )"
+            LOG_LINES="$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" daemon_log tail 5 | awk '{ printf substr($2,7,2); $1=$2=""; print $0}' | sed 's/ \+ / /g' | sed 's/best\=.\{65\}//g' | tr -cd "[:print:]\n" )"
           fi
 
           # Generate the full output line.
@@ -7378,7 +7070,7 @@ ${LOG_LINES}"
       if [ "${LASTBLOCK}" -eq "${CURRENTBLOCK}" ] && [ "${CURRENTBLOCK}" -ge "${WEBBLOCK}" ]
       then
         # Check blockcount from peers.
-        PEER_BLOCK_COUNT=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
+        PEER_BLOCK_COUNT=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" getpeerblockcount )
         if ! [[ ${PEER_BLOCK_COUNT} =~ ${RE} ]] && [[ $CONNECTIONCOUNT -ge $DAEMON_CONNECTIONS ]]
         then
           break
@@ -7401,21 +7093,21 @@ ${LOG_LINES}"
         # Swap addnodes if blockcount is stuck.
         if [[ "${START_COUNTER}" -lt 2 ]]
         then
-          if [[ $( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" conf | grep -c '^addnode=' ) -gt 2 ]]
+          if [[ $( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" conf | grep -c '^addnode=' ) -gt 2 ]]
           then
-            _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" remove_addnode
+            _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" remove_addnode
           else
-            _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_addnode
+            _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" dl_addnode
           fi
 
         # Reindex daemon if blockcount is stuck 3 times in a row.
         elif [[ "${START_COUNTER}" -eq 3 ]]
         then
           echo "Starting the daemon with -reindex."
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" reindex
 
         else
-          _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
+          _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" restart
           sleep 15
           echo
           echo
@@ -7428,7 +7120,7 @@ ${LOG_LINES}"
         BIG_COUNTER=0
         START_COUNTER=$(( START_COUNTER + 1 ))
       fi
-      TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+      TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
       if [[ ! -z "${TEMP_VAR_PID}" ]]
       then
         sudo -n renice 10 -p "${TEMP_VAR_PID}" >/dev/null 2>&1
@@ -7437,7 +7129,7 @@ ${LOG_LINES}"
     stty sane 2>/dev/null
     echo
 
-    TEMP_VAR_PID=$( _masternode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
+    TEMP_VAR_PID=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" pid )
     if [[ ! -z "${TEMP_VAR_PID}" ]]
     then
       sudo -n renice 0 -p "${TEMP_VAR_PID}"
@@ -7476,14 +7168,14 @@ ${LOG_LINES}"
   fi
 
 }
-# End of function for _masternode_dameon_2.
-MN_DAEMON_MASTER_FUNCD
+# End of function for _gridnode_dameon_2.
+GN_DAEMON_MASTER_FUNCD
 )
 sleep 0.1
 
-_MN_DAEMON_COMP=$( cat << "MN_DAEMON_COMP"
-# Start of function for _masternode_dameon_2_completions.
-_masternode_dameon_2_completions() {
+_GN_DAEMON_COMP=$( cat << "GN_DAEMON_COMP"
+# Start of function for _gridnode_dameon_2_completions.
+_gridnode_dameon_2_completions() {
   if [[ "${COMP_WORDS[0]}" != 'all_mn_run' ]]
   then
     LEVEL1=$(
@@ -7494,8 +7186,8 @@ _masternode_dameon_2_completions() {
       ) 2>&1
     )
   fi
-#   LEVEL1_ALT=" $( _masternode_dameon_2 '' '' '' '' '' '' '' '' 'help-bashrc' ) "
-  LEVEL1_ALT=' addnode_console addnode_list addnode_remove addnode_to_connect blockcheck blockcheck_fix blockcheck_reindex blockcount_explorer chaincheck checkblock checkchain checkpeers checksystemd cli conf connect_to_addnode console_addnode crontab daemon daemon_in_good_state daemon_log daemon_remove daemon_update dl_addnode dl_blocks_n_chains dl_bootstrap dl_bootstrap_reindex explorer explorer_blockcount explorer_peers failure_after_start forcestart getmasternodever getmasternodeversion getpeerblockcount getpeerblockver getpeerver getpeerversion githubrepo lastblock lastblock_time list_addnode log_daemon log_system peercheck peers_remove pid port privkey ps ps-short reindex reindexzerocoin remove_addnode remove_daemon remove_peers rename restart start start-nosystemd status stop sync systemdcheck system_log update_daemon uptime '
+#   LEVEL1_ALT=" $( _gridnode_dameon_2 '' '' '' '' '' '' '' '' 'help-bashrc' ) "
+  LEVEL1_ALT=' addnode_console addnode_list addnode_remove addnode_to_connect blockcheck blockcheck_fix blockcheck_reindex blockcount_explorer chaincheck checkblock checkchain checkpeers checksystemd cli conf connect_to_addnode console_addnode crontab daemon daemon_in_good_state daemon_log daemon_remove daemon_update dl_addnode dl_blocks_n_chains dl_bootstrap dl_bootstrap_reindex explorer explorer_blockcount explorer_peers failure_after_start forcestart getgridnodever getgridnodeversion getpeerblockcount getpeerblockver getpeerver getpeerversion githubrepo lastblock lastblock_time list_addnode log_daemon log_system peercheck peers_remove pid port privkey ps ps-short reindex reindexzerocoin remove_addnode remove_daemon remove_peers rename restart start start-nosystemd status stop sync systemdcheck system_log update_daemon uptime '
 
   if [[ $( echo "${LEVEL1}" | grep -c "smartnode" ) -ge 1 ]]
   then
@@ -7573,15 +7265,15 @@ _masternode_dameon_2_completions() {
   fi
   return 0
 }
-# End of function for _masternode_dameon_2_completions.
-MN_DAEMON_COMP
+# End of function for _gridnode_dameon_2_completions.
+GN_DAEMON_COMP
 )
 
-# Create function that will run the same command on all masternodes.
-_ALL_MN_RUN=$( cat << "ALL_MN_RUN"
+# Create function that will run the same command on all gridnodes.
+_ALL_GN_RUN=$( cat << "ALL_GN_RUN"
 # Start of function for all_mn_run.
 all_mn_run () {
-  local MN_USRNAME
+  local GN_USRNAME
   local DAEMONS_RAN
   local THIS_DAEMON
   while read -r USR_HOME_DIR
@@ -7591,41 +7283,41 @@ all_mn_run () {
       continue
     fi
 
-    MN_USRNAME=$( basename "${USR_HOME_DIR}" )
-    if [ "$( type "${MN_USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -gt 0 ]
+    GN_USRNAME=$( basename "${USR_HOME_DIR}" )
+    if [ "$( type "${GN_USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -gt 0 ]
     then
       if [[ "$1" == 'DAEMON_NAME' ]]
       then
-        if [[ $( "${MN_USRNAME}" daemon ) == "$2" ]]
+        if [[ $( "${GN_USRNAME}" daemon ) == "$2" ]]
         then
-          echo "${MN_USRNAME}"
-          ${MN_USRNAME} "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
+          echo "${GN_USRNAME}"
+          ${GN_USRNAME} "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
           echo
         fi
       elif [[ "$1" == 'ONE_DAEMON' ]]
       then
-        THIS_DAEMON=$( "${MN_USRNAME}" daemon )
+        THIS_DAEMON=$( "${GN_USRNAME}" daemon )
         if [[ $( echo "${DAEMONS_RAN}" |  grep -c "${THIS_DAEMON}" ) -eq 0 ]]
         then
           DAEMONS_RAN="${DAEMONS_RAN} ${THIS_DAEMON}"
-          echo "${MN_USRNAME}"
-          ${MN_USRNAME} "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
+          echo "${GN_USRNAME}"
+          ${GN_USRNAME} "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}"
           echo
         fi
       else
-        echo "${MN_USRNAME}"
-        ${MN_USRNAME} "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+        echo "${GN_USRNAME}"
+        ${GN_USRNAME} "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
         echo
       fi
     fi
   done <<< "$( cut -d: -f1 /etc/passwd | getent passwd | cut -d: -f6 | sort -h )"
 }
 # End of function for all_mn_run.
-ALL_MN_RUN
+ALL_GN_RUN
 )
 
-# Create function that will run the same command on all masternodes.
-_DAEMON_MN_RUN=$( cat << "DAEMON_MN_RUN"
+# Create function that will run the same command on all gridnodes.
+_DAEMON_GN_RUN=$( cat << "DAEMON_GN_RUN"
 # Start of function for _daemon_mn_run.
 _daemon_mn_run () {
   CONF=${1}
@@ -7655,12 +7347,12 @@ _daemon_mn_run () {
       continue
     fi
 
-    MN_USRNAME=$( basename "${USR_HOME_DIR}" )
-    if [ "$( type "${MN_USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -gt 0 ]
+    GN_USRNAME=$( basename "${USR_HOME_DIR}" )
+    if [ "$( type "${GN_USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -gt 0 ]
     then
-      if [[ $( "${MN_USRNAME}" cli ) == "${CONTROLLER_BIN}" ]]
+      if [[ $( "${GN_USRNAME}" cli ) == "${CONTROLLER_BIN}" ]]
       then
-        CONF_LOCATIONS=$( "${MN_USRNAME}" conf loc )
+        CONF_LOCATIONS=$( "${GN_USRNAME}" conf loc )
       else
         CONF_LOCATIONS=''
       fi
@@ -7735,11 +7427,11 @@ ${COUNTER} ${USRNAME} ${CONF_LOCATION}"
       echo
       echo "${USRNAME} ${CONF_LOCATION}"
     fi
-    _masternode_dameon_2 "${USRNAME}" "${CONTROLLER_BIN}" "${EXPLORER_URL}" "${DAEMON_BIN}" "${CONF_LOCATION}" "${EXPLORER_EXTRA_PARAM}" '-1' '-1' "${6}" "${7}" "${8}" "${9}" "${10}" "${11}" "${12}" "${13}" "${14}"
+    _gridnode_dameon_2 "${USRNAME}" "${CONTROLLER_BIN}" "${EXPLORER_URL}" "${DAEMON_BIN}" "${CONF_LOCATION}" "${EXPLORER_EXTRA_PARAM}" '-1' '-1' "${6}" "${7}" "${8}" "${9}" "${10}" "${11}" "${12}" "${13}" "${14}"
   done <<< "${CONF_N_USRNAMES}"
 }
 # End of function for _daemon_mn_run.
-DAEMON_MN_RUN
+DAEMON_GN_RUN
 )
 
 COMPILE_DAEMON() {
@@ -7888,28 +7580,28 @@ COMPILE_DAEMON() {
   fi
 
   PROJECT_DIR=$( echo "${GITHUB_REPO}" | tr '/' '_' )
-  mkdir -p "/var/multi-masternode-data/${PROJECT_DIR}/src"
+  mkdir -p "/var/multi-gridnode-data/${PROJECT_DIR}/src"
   if [[ -f "${TMP_FOLDER}/src/${DAEMON_BIN}" ]]
   then
-    cp "${TMP_FOLDER}/src/${DAEMON_BIN}" "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+    cp "${TMP_FOLDER}/src/${DAEMON_BIN}" "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
   fi
   if [[ -f "${TMP_FOLDER}/src/${CONTROLLER_BIN}" ]]
   then
-    cp "${TMP_FOLDER}/src/${CONTROLLER_BIN}" "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+    cp "${TMP_FOLDER}/src/${CONTROLLER_BIN}" "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
   fi
 }
 
 USER_FUNCTION_FOR_ALL_MASTERNODES () {
   echo "Updating .bashrc file."
-  UPDATE_USER_FILE "${_MN_DAEMON_MASTER_FUNC}" "_masternode_dameon_2" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
-  UPDATE_USER_FILE "${_MN_DAEMON_COMP}" "_masternode_dameon_2_completions" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
-  UPDATE_USER_FILE "${_ALL_MN_RUN}" "all_mn_run" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
-  UPDATE_USER_FILE "${_DAEMON_MN_RUN}" "_daemon_mn_run" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
+  UPDATE_USER_FILE "${_GN_DAEMON_MASTER_FUNC}" "_gridnode_dameon_2" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
+  UPDATE_USER_FILE "${_GN_DAEMON_COMP}" "_gridnode_dameon_2_completions" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
+  UPDATE_USER_FILE "${_ALL_GN_RUN}" "all_mn_run" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
+  UPDATE_USER_FILE "${_DAEMON_GN_RUN}" "_daemon_mn_run" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
 }
 
 UPDATE_DAEMON_ADD_CRON () {
   local IS_EMPTY=''
-  local MN_USRNAME=''
+  local GN_USRNAME=''
 
   local BIN_BASE=''
   local GITHUB_REPO=''
@@ -7926,7 +7618,7 @@ UPDATE_DAEMON_ADD_CRON () {
   DATA_DIRECTORY=${5}
   CONF_DROPBOX_ADDNODES=${6}
   CONF_DROPBOX_BOOTSTRAP=${7}
-  CONF_DROPBOX_BLOCKS_N_CHAINS=${8}
+  CONF_BLOCKS_N_CHAINS=${8}
   RELEASE_INFO_OR_FORCE=${9}
 
   # Daemon Binary.
@@ -7948,21 +7640,21 @@ UPDATE_DAEMON_ADD_CRON () {
     CONF=${CONF_FILE_TOP}
   fi
 
-  if [[ $( grep -c '_masternode_dameon_2' "${HOME}/.bashrc" ) -gt 1 ]]
+  if [[ $( grep -c '_gridnode_dameon_2' "${HOME}/.bashrc" ) -gt 1 ]]
   then
     USER_FUNCTION_FOR_ALL_MASTERNODES
   fi
   # shellcheck source=/root/.bashrc
   source ~/.bashrc
-  if [[ -f /var/multi-masternode-data/.bashrc ]]
+  if [[ -f /var/multi-gridnode-data/.bashrc ]]
   then
     # shellcheck disable=SC1091
-    source /var/multi-masternode-data/.bashrc
+    source /var/multi-gridnode-data/.bashrc
   fi
-  if [[ -f /var/multi-masternode-data/___temp.sh ]]
+  if [[ -f /var/multi-gridnode-data/___temp.sh ]]
   then
     # shellcheck disable=SC1091
-    source /var/multi-masternode-data/___temp.sh
+    source /var/multi-gridnode-data/___temp.sh
   fi
 
   PROJECT_DIR_UPDATE=$( echo "${GITHUB_REPO}" | tr '/' '_' )
@@ -7973,7 +7665,7 @@ UPDATE_DAEMON_ADD_CRON () {
   else
     DAEMON_DOWNLOAD_SUPER "${GITHUB_REPO}" "${BIN_BASE}" "${DAEMON_DOWNLOAD}" "${RELEASE_INFO_OR_FORCE}"
   fi
-  if [[ $( ldd /var/multi-masternode-data/"${PROJECT_DIR_UPDATE}"/src/"${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd /var/multi-masternode-data/"${PROJECT_DIR_UPDATE}"/src/"${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
+  if [[ $( ldd /var/multi-gridnode-data/"${PROJECT_DIR_UPDATE}"/src/"${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd /var/multi-gridnode-data/"${PROJECT_DIR_UPDATE}"/src/"${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
   then
     INITIAL_PROGRAMS
   fi
@@ -7987,14 +7679,14 @@ UPDATE_DAEMON_ADD_CRON () {
       continue
     fi
 
-    MN_USRNAME=$( basename "${USR_HOME_DIR}" )
-    if [ "$( type "${MN_USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -eq 0 ] || [[ $( "${MN_USRNAME}" daemon ) != "${DAEMON_BIN}" ]]
+    GN_USRNAME=$( basename "${USR_HOME_DIR}" )
+    if [ "$( type "${GN_USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -eq 0 ] || [[ $( "${GN_USRNAME}" daemon ) != "${DAEMON_BIN}" ]]
     then
       continue
     fi
-    echo "Working on ${MN_USRNAME}"
-    USR_HOME="$( getent passwd "${MN_USRNAME}" | cut -d: -f6 )"
-    CONF_FILE=$( "${MN_USRNAME}" conf loc )
+    echo "Working on ${GN_USRNAME}"
+    USR_HOME="$( getent passwd "${GN_USRNAME}" | cut -d: -f6 )"
+    CONF_FILE=$( "${GN_USRNAME}" conf loc )
     if [[ -z "${CONF_FILE}" ]]
     then
       CONF_FILE="${USR_HOME}/${DATA_DIRECTORY}/${CONF_FILE_TOP}"
@@ -8032,54 +7724,54 @@ UPDATE_DAEMON_ADD_CRON () {
     fi
     if [[ $( grep -c 'blocks_n_chains' < "${CONF_FILE}" ) -eq 0 ]]
     then
-      echo "Adding blocks_n_chains=${CONF_DROPBOX_BLOCKS_N_CHAINS}"
-      echo -e "\\n# blocks_n_chains=${CONF_DROPBOX_BLOCKS_N_CHAINS}"  >> "${CONF_FILE}"
+      echo "Adding blocks_n_chains=${CONF_BLOCKS_N_CHAINS}"
+      echo -e "\\n# blocks_n_chains=${CONF_BLOCKS_N_CHAINS}"  >> "${CONF_FILE}"
     fi
 
-    if [[ $( sudo su "${MN_USRNAME}" -c 'crontab -l' 2>/dev/null | grep -cF "${MN_USRNAME} update_daemon 2>&1" ) -eq 0  ]]
+    if [[ $( sudo su "${GN_USRNAME}" -c 'crontab -l' 2>/dev/null | grep -cF "${GN_USRNAME} update_daemon 2>&1" ) -eq 0  ]]
     then
       echo 'Setting up crontab for auto updating in the future.'
       MINUTES=$((RANDOM % 60))
-      sudo su "${MN_USRNAME}" -c " ( crontab -l 2>/dev/null ; echo \"${MINUTES} */6 * * * bash -ic 'source /var/multi-masternode-data/.bashrc; ${MN_USRNAME} update_daemon 2>&1' 2>/dev/null\" ) | crontab - "
+      sudo su "${GN_USRNAME}" -c " ( crontab -l 2>/dev/null ; echo \"${MINUTES} */6 * * * bash -ic 'source /var/multi-gridnode-data/.bashrc; ${GN_USRNAME} update_daemon 2>&1' 2>/dev/null\" ) | crontab - "
     fi
 
-    if [[ $( sudo su "${MN_USRNAME}" -c 'crontab -l' | grep -cF "${MN_USRNAME} mnfix 2>&1" ) -eq 0  ]]
+    if [[ $( sudo su "${GN_USRNAME}" -c 'crontab -l' | grep -cF "${GN_USRNAME} mnfix 2>&1" ) -eq 0  ]]
     then
       echo 'Setting up crontab to auto fix the daemon.'
       MINUTES=$(( RANDOM % 19 ))
       MINUTES_A=$(( MINUTES + 20 ))
       MINUTES_B=$(( MINUTES + 40 ))
-      sudo chown -R "${MN_USRNAME}":"${MN_USRNAME}" "${USR_HOME}/"
+      sudo chown -R "${GN_USRNAME}":"${GN_USRNAME}" "${USR_HOME}/"
       rm -f "${USR_HOME}/mnfix.log"
-      sudo su "${MN_USRNAME}" -c "touch \"${USR_HOME}/mnfix.log\""
-      sudo su "${MN_USRNAME}" -c " ( crontab -l ; echo \"${MINUTES},${MINUTES_A},${MINUTES_B} * * * * bash -ic 'source /var/multi-masternode-data/.bashrc; ${MN_USRNAME} mnfix 2>&1' 2>&1 >> ${USR_HOME}/mnfix.log \" ) | crontab - "
+      sudo su "${GN_USRNAME}" -c "touch \"${USR_HOME}/mnfix.log\""
+      sudo su "${GN_USRNAME}" -c " ( crontab -l ; echo \"${MINUTES},${MINUTES_A},${MINUTES_B} * * * * bash -ic 'source /var/multi-gridnode-data/.bashrc; ${GN_USRNAME} mnfix 2>&1' 2>&1 >> ${USR_HOME}/mnfix.log \" ) | crontab - "
     fi
-    sudo sh -c "find /var/multi-masternode-data/${PROJECT_DIR_UPDATE}/blocks_n_chains/ -type f -exec chmod 666 {} \\;"
-    sudo sh -c "find /var/multi-masternode-data/${PROJECT_DIR_UPDATE}/blocks_n_chains/ -type d -exec chmod 777 {} \\;"
+    sudo sh -c "find /var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/blocks_n_chains/ -type f -exec chmod 666 {} \\;"
+    sudo sh -c "find /var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/blocks_n_chains/ -type d -exec chmod 777 {} \\;"
 
     if [[ ! -z "${EXPLORER_URL}" ]]
     then
-      USER_FUNCTION_FOR_MASTERNODE "${MN_USRNAME}" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
+      USER_FUNCTION_FOR_MASTERNODE "${GN_USRNAME}" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
     fi
-    USER_FUNCTION_FOR_MN_CLI "${CONF}" "${CONTROLLER_BIN}" "${DAEMON_BIN}" "${EXPLORER_URL}" "${BAD_SSL_HACK}" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
+    USER_FUNCTION_FOR_GN_CLI "${CONF}" "${CONTROLLER_BIN}" "${DAEMON_BIN}" "${EXPLORER_URL}" "${BAD_SSL_HACK}" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
 
     # Add libs if missing.
-    if [[ $( ldd /var/multi-masternode-data/"${PROJECT_DIR_UPDATE}"/src/"${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd /var/multi-masternode-data/"${PROJECT_DIR_UPDATE}"/src/"${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
+    if [[ $( ldd /var/multi-gridnode-data/"${PROJECT_DIR_UPDATE}"/src/"${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd /var/multi-gridnode-data/"${PROJECT_DIR_UPDATE}"/src/"${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
     then
       INITIAL_PROGRAMS
     fi
 
-    "${MN_USRNAME}" update_daemon "${RELEASE_INFO_OR_FORCE}"
+    "${GN_USRNAME}" update_daemon "${RELEASE_INFO_OR_FORCE}"
 
-    PID_MN=$( "${MN_USRNAME}" pid )
-    if [[  -z "${PID_MN}" ]]
+    PID_GN=$( "${GN_USRNAME}" pid )
+    if [[  -z "${PID_GN}" ]]
     then
       continue
     fi
 
-    "${MN_USRNAME}" wait_for_loaded "${ARG6}"
-    "${MN_USRNAME}" blockcheck
-    if [[ $( "${MN_USRNAME}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
+    "${GN_USRNAME}" wait_for_loaded "${ARG6}"
+    "${GN_USRNAME}" blockcheck
+    if [[ $( "${GN_USRNAME}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -gt 1 ]]
     then
       stty sane 2>/dev/null
       REPLY=y
@@ -8088,11 +7780,11 @@ UPDATE_DAEMON_ADD_CRON () {
 
       if [[ $REPLY =~ ^[Yy] ]]
       then
-        "${MN_USRNAME}" stop
-        "${MN_USRNAME}" remove_addnode
-        "${MN_USRNAME}" reindex
-        "${MN_USRNAME}" start "${ARG6}"
-        "${MN_USRNAME}" sync "" "${ARG6}"
+        "${GN_USRNAME}" stop
+        "${GN_USRNAME}" remove_addnode
+        "${GN_USRNAME}" reindex
+        "${GN_USRNAME}" start "${ARG6}"
+        "${GN_USRNAME}" sync "" "${ARG6}"
       fi
     fi
 
@@ -8101,8 +7793,8 @@ UPDATE_DAEMON_ADD_CRON () {
   echo
   echo
   echo "Getting MD5 of ${DAEMON_BIN} and ${CONTROLLER_BIN}."
-  DAEMON_MD5=$( md5sum "/var/multi-masternode-data/${PROJECT_DIR_UPDATE}/src/${DAEMON_BIN}" | awk '{print $1}' )
-  CONTROLLER_MD5=$( md5sum "/var/multi-masternode-data/${PROJECT_DIR_UPDATE}/src/${CONTROLLER_BIN}" | awk '{print $1}' )
+  DAEMON_MD5=$( md5sum "/var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/src/${DAEMON_BIN}" | awk '{print $1}' )
+  CONTROLLER_MD5=$( md5sum "/var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/src/${CONTROLLER_BIN}" | awk '{print $1}' )
 
   # Get running processes.
   RUNNING_DAEMON_USERS=$( sudo ps axo etimes,pid,user:32,command | grep "[${DAEMON_BIN:0:1}]${DAEMON_BIN:1}" | grep -v "bash" | grep -v "watch" )
@@ -8139,7 +7831,7 @@ ${TIME} ${PID_RUNNING} ${USER_RUNNING} ${A} ${B} ${C} ${D} ${E} ${F} ${G} ${H} $
     then
       echo "${FILENAME} needs to be updated: ${VERSION_LOCAL}"
 
-      cp "/var/multi-masternode-data/${PROJECT_DIR_UPDATE}/src/${CONTROLLER_BIN}" "${FILENAME}"
+      cp "/var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/src/${CONTROLLER_BIN}" "${FILENAME}"
       VERSION_LOCAL=$( timeout --signal=SIGKILL 9s "${FILENAME}" --help 2>/dev/null | head -n 1 | sed 's/[^0-9.]*\([0-9.]*\).*/\1/' )
       if [[ -z "${VERSION_LOCAL}" ]]
       then
@@ -8172,7 +7864,7 @@ ${TIME} ${PID_RUNNING} ${USER_RUNNING} ${A} ${B} ${C} ${D} ${E} ${F} ${G} ${H} $
 
       if [[ $( echo "${RUNNING_DAEMON_USERS_NEW}" | grep -c "[[:space:]]${FILENAME}" ) -eq 0 ]]
       then
-        cp "/var/multi-masternode-data/${PROJECT_DIR_UPDATE}/src/${DAEMON_BIN}" "${FILENAME}"
+        cp "/var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/src/${DAEMON_BIN}" "${FILENAME}"
       else
         # Get extra parameters.
         EXTRA_PARAMETERS=$( echo "${RUNNING_DAEMON_USERS_NEW}" | grep "[[:space:]]${FILENAME}" | grep -o "/${DAEMON_BIN}.*" | sed "s/^\/${DAEMON_BIN}//g" | sed "s/\s\(-\)\{0,2\}daemon//g"  | sed "s/\s\(-\)\{0,2\}reindex//g" | sed "s/\s\(-\)\{0,2\}rescan//g" | sed "s/\s\(-\)\{0,2\}reindexzerocoin//g" | sed "s/\s\(-\)\{0,2\}zapwallettxes\=1//g" | sed "s/\s\(-\)\{0,2\}zapwallettxes\=2//g" )
@@ -8240,7 +7932,7 @@ ${TIME} ${PID_RUNNING} ${USER_RUNNING} ${A} ${B} ${C} ${D} ${E} ${F} ${G} ${H} $
         # Copy new version.
         sleep 1
         echo "Copying files"
-        cp "/var/multi-masternode-data/${PROJECT_DIR_UPDATE}/src/${DAEMON_BIN}" "${FILENAME}"
+        cp "/var/multi-gridnode-data/${PROJECT_DIR_UPDATE}/src/${DAEMON_BIN}" "${FILENAME}"
 
         # Start daemon up again.
         echo "${FILENAME} --daemon ${EXTRA_PARAMETERS}"
@@ -8310,9 +8002,9 @@ then
   "' & disown >/dev/null 2>&1
 fi
 
-rm -f /var/multi-masternode-data/___temp.sh
+rm -f /var/multi-gridnode-data/___temp.sh
 # m c a r p e r
-UPDATE_USER_FILE "${_DENYHOSTS_UNBLOCK}" "denyhosts_unblock" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
+UPDATE_USER_FILE "${_DENYHOSTS_UNBLOCK}" "denyhosts_unblock" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
 USER_FUNCTION_FOR_ALL_MASTERNODES
 
 if [ ! -x "$( command -v netcat )" ] || [ ! -x "$( command -v bc )" ] || [ ! -x "$( command -v netstat )" ]
@@ -8346,17 +8038,17 @@ TXHASH=''
 # $3 sets output index
 OUTPUTIDX=''
 # $4 sets mn key
-MNKEY=''
+GNKEY=''
 # $5 if set will skip confirmation prompt.
 SKIP_CONFIRM=''
 
-if [[ "${NO_MN}" -eq 1 ]]
+if [[ "${NO_GN}" -eq 1 ]]
 then
   MULTI_IP_MODE=0
   SKIP_CONFIRM='y'
   SENTINEL_GITHUB=''
   SENTINEL_CONF_START=''
-  MNSYNC_WAIT_FOR=''
+  GNSYNC_WAIT_FOR=''
   DAEMON_CONNECTIONS=3
   DAEMON_PREFIX=$( echo "${DAEMON_PREFIX}" | cut -f1 -d "_")
   DAEMON_PREFIX="${DAEMON_PREFIX}_n"
@@ -8406,7 +8098,7 @@ then
 fi
 
 # Set alias as the hostname.
-MNALIAS="$( hostname )"
+GNALIAS="$( hostname )"
 
 if [ -x "$( command -v ufw )" ]
 then
@@ -8420,30 +8112,30 @@ PORTA=$( FIND_FREE_PORT "${PRIVIPADDRESS}" | tail -n 1 )
 
 
 # Allow for loose args
-# Set MNKEY
+# Set GNKEY
 if [[ ${#ARG1} -eq 51 ]] || [[ ${#ARG1} -eq 50 ]]
 then
-  MNKEY=${ARG1}
+  GNKEY=${ARG1}
   ARG1=''
 fi
 if [[ ${#ARG2} -eq 51 ]] || [[ ${#ARG2} -eq 50 ]]
 then
-  MNKEY=${ARG2}
+  GNKEY=${ARG2}
   ARG2=''
 fi
 if [[ ${#ARG3} -eq 51 ]] || [[ ${#ARG3} -eq 50 ]]
 then
-  MNKEY=${ARG3}
+  GNKEY=${ARG3}
   ARG3=''
 fi
 if [[ ${#ARG4} -eq 51 ]] || [[ ${#ARG4} -eq 50 ]]
 then
-  MNKEY=${ARG4}
+  GNKEY=${ARG4}
   ARG3=''
 fi
 if [[ ${#ARG5} -eq 51 ]] || [[ ${#ARG5} -eq 50 ]]
 then
-  MNKEY=${ARG5}
+  GNKEY=${ARG5}
   ARG5=''
 fi
 
@@ -8528,9 +8220,9 @@ then
   SKIP_CONFIRM="${ARG5}"
 fi
 
-if [[ "${NO_MN}" -eq 0 ]]
+if [[ "${NO_GN}" -eq 0 ]]
 then
-  echo "${DAEMON_NAME} daemon ${MASTERNODE_NAME} setup script"
+  echo "${DAEMON_NAME} daemon ${GRIDNODE_NAME} setup script"
   echo
 fi
 
@@ -8546,8 +8238,8 @@ then
     echo "${COLLATERAL}"
     echo
     echo "In your wallet, go to tools -> debug -> console and type:"
-    echo "${MASTERNODE_CALLER}outputs"
-    echo "Paste the info for this ${MASTERNODE_NAME}; or leave it blank to skip and do it later."
+    echo "${GRIDNODE_CALLER}outputs"
+    echo "Paste the info for this ${GRIDNODE_NAME}; or leave it blank to skip and do it later."
     if [ -z "${TXHASH}" ]
     then
       stty sane 2>/dev/null
@@ -8810,12 +8502,12 @@ then
     fi
 
     # Make sure it didn't get staked.
-    if [[ -s "${TEMP_FILE}.${OUTPUTIDX}" ]] && [[ -z "${MN_WALLET_ADDR_DETAILS}" ]]
+    if [[ -s "${TEMP_FILE}.${OUTPUTIDX}" ]] && [[ -z "${GN_WALLET_ADDR_DETAILS}" ]]
     then
-      MN_WALLET_ADDR_DETAILS="$( cat "${TEMP_FILE}.${OUTPUTIDX}" )"
+      GN_WALLET_ADDR_DETAILS="$( cat "${TEMP_FILE}.${OUTPUTIDX}" )"
     fi
 
-    TXIDS_FOR_ADDR=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".last_txs[][] " 2>/dev/null | grep -o -w -E '[[:alnum:]]{64}' | grep -vE "vin|vout" )
+    TXIDS_FOR_ADDR=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".last_txs[][] " 2>/dev/null | grep -o -w -E '[[:alnum:]]{64}' | grep -vE "vin|vout" )
     if [[ $( echo "${TXIDS_FOR_ADDR}" | grep -c "${TXHASH}" ) -gt 0 ]]
     then
       TXIDS_AFTER_COLLATERAL=$( echo "${TXIDS_FOR_ADDR}" | sed -n -e "/${TXHASH}/,\$p" | grep -v "${TXHASH}" )
@@ -9076,7 +8768,7 @@ fi
 # Get mnkey from arg.
 if [ ! -z "${ARG4}" ] && [ "${ARG4}" != "-1" ]
 then
-  MNKEY="${ARG4}"
+  GNKEY="${ARG4}"
 fi
 
 # Auto pick a user that is blank.
@@ -9111,21 +8803,21 @@ else
   echo -e "Address:              \\e[1;4m${PUBIPADDRESS}\\e[0m"
 fi
 echo -e "Port:                 \\e[1;4m${PORTB}\\e[0m"
-if [[ "${NO_MN}" -eq 0 ]]
+if [[ "${NO_GN}" -eq 0 ]]
 then
-  if [ -z "${MNKEY}" ]
+  if [ -z "${GNKEY}" ]
   then
-    echo -e "${MASTERNODE_PRIVKEY}:    \\e[2m(auto generate one)\\e[0m"
+    echo -e "${GRIDNODE_PRIVKEY}:    \\e[2m(auto generate one)\\e[0m"
   else
-    echo -e "${MASTERNODE_PRIVKEY}:    \\e[1;4m${MNKEY}\\e[0m"
+    echo -e "${GRIDNODE_PRIVKEY}:    \\e[1;4m${GNKEY}\\e[0m"
   fi
   echo -e "txhash:               \\e[1;4m${TXHASH}\\e[0m"
   echo -e "outputidx:            \\e[1;4m${OUTPUTIDX}\\e[0m"
-  echo -e "alias:                \\e[1;4m${USRNAME}_${MNALIAS}\\e[0m"
+  echo -e "alias:                \\e[1;4m${USRNAME}_${GNALIAS}\\e[0m"
   echo
 
   REPLY='y'
-  echo "The full string to paste into the ${MASTERNODE_CONF} file"
+  echo "The full string to paste into the ${GRIDNODE_CONF} file"
   echo "will be shown at the end of the setup script."
   echo -e "\\e[4mPress Enter to continue\\e[0m"
   stty sane 2>/dev/null
@@ -9165,8 +8857,8 @@ then
   # Get private key if user want's to supply one.
   echo
   echo "Recommend you leave this blank to have script automatically generate one"
-  read -r -e -i "${MNKEY}" -p "${MASTERNODE_PRIVKEY}: " input 2>&1
-  MNKEY="${input:-$MNKEY}"
+  read -r -e -i "${GNKEY}" -p "${GRIDNODE_PRIVKEY}: " input 2>&1
+  GNKEY="${input:-$GNKEY}"
 
   # Get IP public address.
   read -r -e -i "${PUBIPADDRESS}" -p "Public IPv4 Address: " input 2>&1
@@ -9181,9 +8873,9 @@ fi
 
 echo
 echo "Starting the ${DAEMON_NAME} install process; please wait for this to finish."
-if [[ "${NO_MN}" -eq 0 ]]
+if [[ "${NO_GN}" -eq 0 ]]
 then
-  echo "The script ends when you see the big string to add to the ${MASTERNODE_CONF} file."
+  echo "The script ends when you see the big string to add to the ${GRIDNODE_CONF} file."
 fi
 echo "Let the script run and keep your terminal open."
 echo
@@ -9219,14 +8911,14 @@ do
     continue
   fi
 
-  MN_USRNAME=$( basename "${USR_HOME_DIR}" )
-  if [ "$( type "${MN_USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -gt 0 ]
+  GN_USRNAME=$( basename "${USR_HOME_DIR}" )
+  if [ "$( type "${GN_USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -gt 0 ]
   then
     if [[ -z "${ALL_DAEMON_USERS}" ]]
     then
-      ALL_DAEMON_USERS="${MN_USRNAME}"
+      ALL_DAEMON_USERS="${GN_USRNAME}"
     else
-      ALL_DAEMON_USERS=$( printf "%s\\n%s" "${ALL_DAEMON_USERS}" "${MN_USRNAME}" )
+      ALL_DAEMON_USERS=$( printf "%s\\n%s" "${ALL_DAEMON_USERS}" "${GN_USRNAME}" )
     fi
   fi
 done <<< "$( cut -d: -f1 /etc/passwd | getent passwd | cut -d: -f6 | sort -h )"
@@ -9237,14 +8929,14 @@ ALL_DAEMON_USERS=$( echo "${ALL_DAEMON_USERS}" | sort )
 BOTH_LISTS=$( sort <( echo "${RUNNING_DAEMON_USERS}" | tr " " '\n' ) <( echo "${ALL_DAEMON_USERS}" | tr " " '\n' )| uniq -d | grep -Ev "^$" )
 
 # Make sure daemon has the correct block count.
-while read -r GOOD_MN_USRNAME
+while read -r GOOD_GN_USRNAME
 do
-  if [[ -z "${GOOD_MN_USRNAME}" ]] || [[ "${GOOD_MN_USRNAME}" == 'root' ]]
+  if [[ -z "${GOOD_GN_USRNAME}" ]] || [[ "${GOOD_GN_USRNAME}" == 'root' ]]
   then
     break
   fi
-  echo -n "Checking ${GOOD_MN_USRNAME}."
-  if [[ $( "${GOOD_MN_USRNAME}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -eq 1 ]]
+  echo -n "Checking ${GOOD_GN_USRNAME}."
+  if [[ $( "${GOOD_GN_USRNAME}" blockcheck 2>/dev/null | sed '/^[[:space:]]*$/d' | wc -l ) -eq 1 ]]
   then
     echo " It is good!"
     if [[ "${FAST_SYNC}" -eq 1 ]]
@@ -9252,41 +8944,41 @@ do
       continue
     fi
     # Generate key and stop master node.
-    if [ -z "${MNKEY}" ] && [[ "${NO_MN}" -eq 0 ]]
+    if [ -z "${GNKEY}" ] && [[ "${NO_GN}" -eq 0 ]]
     then
-      echo "Generate ${MASTERNODE_GENKEY_COMMAND} on ${GOOD_MN_USRNAME}"
-      MNKEY=$( "${GOOD_MN_USRNAME}" "${MASTERNODE_GENKEY_COMMAND}" )
+      echo "Generate ${GRIDNODE_GENKEY_COMMAND} on ${GOOD_GN_USRNAME}"
+      GNKEY=$( "${GOOD_GN_USRNAME}" "${GRIDNODE_GENKEY_COMMAND}" )
     fi
 
     # If daemon is not slow OR we do not have BLOCKS_N_CHAINS then stop n copy.
-    if [[ "${SLOW_DAEMON_START}" -eq 0 ]] || [[ -z "${DROPBOX_BLOCKS_N_CHAINS}" ]]
+    if [[ "${SLOW_DAEMON_START}" -eq 0 ]] || [[ -z "${BLOCKS_N_CHAINS}" ]]
     then
       # Copy this Daemon.
-      echo "Stopping ${GOOD_MN_USRNAME}"
-      "${GOOD_MN_USRNAME}" disable >/dev/null 2>&1
+      echo "Stopping ${GOOD_GN_USRNAME}"
+      "${GOOD_GN_USRNAME}" disable >/dev/null 2>&1
 
       if [[ ${ARG6} == 'y' ]]
       then
-        echo "Waiting for ${GOOD_MN_USRNAME} to shutdown"
+        echo "Waiting for ${GOOD_GN_USRNAME} to shutdown"
       fi
-      while [[ $( sudo lslocks -n -o COMMAND,PATH | grep -cF "${GOOD_MN_USRNAME}/${DIRECTORY}" ) -ne 0 ]]
+      while [[ $( sudo lslocks -n -o COMMAND,PATH | grep -cF "${GOOD_GN_USRNAME}/${DIRECTORY}" ) -ne 0 ]]
       do
         if [[ ${ARG6} == 'y' ]]
         then
           printf "."
         else
-          echo -e "\\r${SP:i++%${#SP}:1} Waiting for ${GOOD_MN_USRNAME} to shutdown \\c"
+          echo -e "\\r${SP:i++%${#SP}:1} Waiting for ${GOOD_GN_USRNAME} to shutdown \\c"
         fi
         sleep 0.5
       done
       echo
 
-      echo "Coping /home/${GOOD_MN_USRNAME} to /home/${USRNAME} for faster sync."
+      echo "Coping /home/${GOOD_GN_USRNAME} to /home/${USRNAME} for faster sync."
       sudo rm -rf /home/"${USRNAME:?}"
-      sudo cp -r /home/"${GOOD_MN_USRNAME}" "/home/${USRNAME}"
+      sudo cp -r /home/"${GOOD_GN_USRNAME}" "/home/${USRNAME}"
       sleep 0.1
       rm -rf "/home/${USRNAME}/disabled"
-      if [[ ! -z $( "${GOOD_MN_USRNAME}" pid ) ]]
+      if [[ ! -z $( "${GOOD_GN_USRNAME}" pid ) ]]
       then
         sudo rm -rf /home/"${USRNAME:?}"
         sudo mkdir /home/"${USRNAME:?}"
@@ -9294,8 +8986,8 @@ do
         continue
       fi
 
-      echo "Starting ${GOOD_MN_USRNAME}"
-      "${GOOD_MN_USRNAME}" enable >/dev/null 2>&1
+      echo "Starting ${GOOD_GN_USRNAME}"
+      "${GOOD_GN_USRNAME}" enable >/dev/null 2>&1
       sleep 0.2
 
       FAST_SYNC=1
@@ -9309,8 +9001,8 @@ do
   then
     echo
     echo "System Might be overloaded."
-    "${GOOD_MN_USRNAME}" blockcheck
-    echo "This linux box may not have enough resources to run another ${MASTERNODE_NAME} daemon."
+    "${GOOD_GN_USRNAME}" blockcheck
+    echo "This linux box may not have enough resources to run another ${GRIDNODE_NAME} daemon."
     echo "ctrl-c to exit this script and fix the broken mn before installing more."
     echo
     stty sane 2>/dev/null
@@ -9334,7 +9026,7 @@ then
 else
   INITIAL_PROGRAMS
   COUNTER=0
-  while [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
+  while [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -cF 'not found' ) -ne 0 ]] || [[ $( ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -cF 'not found' ) -ne 0 ]]
   do
     sudo dpkg -D1 --configure -a
     sleep 1
@@ -9347,9 +9039,9 @@ else
     then
       echo
       echo "The following shared objects are missing for ${DAEMON_BIN}."
-      ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -F 'not found'
+      ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" | grep -F 'not found'
       echo "The following shared objects are missing for ${CONTROLLER_BIN}"
-      ldd "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -F 'not found'
+      ldd "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" | grep -F 'not found'
       echo
       echo "reboot this linux instace by running: "
       echo "reboot"
@@ -9368,12 +9060,12 @@ else
   ( SYSTEM_UPDATE_UPGRADE >/dev/null 2>&1 ) & disown >/dev/null 2>&1
 fi
 
-if [ ! -f "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ] || [ ! -f "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]
+if [ ! -f "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" ] || [ ! -f "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" ]
 then
   echo
   echo "Daemon download and install failed. "
-  echo "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
-  echo "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
+  echo "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}"
+  echo "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}"
   echo "Do not exist."
   echo
   return 1 2>/dev/null || exit 1
@@ -9447,8 +9139,8 @@ then
 fi
 
 # m c a r p e r
-USER_FUNCTION_FOR_MASTERNODE "${USRNAME}" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
-USER_FUNCTION_FOR_MN_CLI "${CONF}" "${CONTROLLER_BIN}" "${DAEMON_BIN}" "${EXPLORER_URL}" "${BAD_SSL_HACK}" "${HOME}/.bashrc" "/var/multi-masternode-data/___temp.sh"
+USER_FUNCTION_FOR_MASTERNODE "${USRNAME}" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
+USER_FUNCTION_FOR_GN_CLI "${CONF}" "${CONTROLLER_BIN}" "${DAEMON_BIN}" "${EXPLORER_URL}" "${BAD_SSL_HACK}" "${HOME}/.bashrc" "/var/multi-gridnode-data/___temp.sh"
 
 # Load in the bash function into this instance.
 if [ -z "${PS1}" ]
@@ -9462,19 +9154,19 @@ then
   PS1=''
 fi
 
-if [[ "$( type "${USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -eq 0 ]]
+if [[ "$( type "${USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -eq 0 ]]
 then
   # shellcheck disable=SC1091
-  . /var/multi-masternode-data/___temp.sh
+  . /var/multi-gridnode-data/___temp.sh
 fi
 
 # Copy daemon code to new users home dir.
 USR_HOME="$( getent passwd "${USRNAME}" | cut -d: -f6 )"
 echo "Copy daemon code to ${USR_HOME}/.local/bin"
 sudo mkdir -p "${USR_HOME}/.local/bin"
-sudo cp "/var/multi-masternode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" "${USR_HOME}/.local/bin/"
+sudo cp "/var/multi-gridnode-data/${PROJECT_DIR}/src/${DAEMON_BIN}" "${USR_HOME}/.local/bin/"
 sudo chmod +x "${USR_HOME}/.local/bin/${DAEMON_BIN}"
-sudo cp "/var/multi-masternode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" "${USR_HOME}/.local/bin/"
+sudo cp "/var/multi-gridnode-data/${PROJECT_DIR}/src/${CONTROLLER_BIN}" "${USR_HOME}/.local/bin/"
 sudo chmod +x "${USR_HOME}/.local/bin/${CONTROLLER_BIN}"
 
 # Generate random password.
@@ -9532,7 +9224,7 @@ sudo chown -R "${USRNAME}":"${USRNAME}" "${USR_HOME}/"
 sudo rm -f "${USR_HOME}/${DIRECTORY}/${CONF}"
 sudo su "${USRNAME}" -c "touch ${USR_HOME}/${DIRECTORY}/${CONF}"
 
-# Setup systemd to start masternode on restart.
+# Setup systemd to start gridnode on restart.
 TIMEOUT='70s'
 STARTLIMITINTERVAL='600s'
 if [[ "${SLOW_DAEMON_START}" -eq 1 ]]
@@ -9544,19 +9236,19 @@ fi
 OOM_SCORE_ADJUST=$( sudo cat /etc/passwd | wc -l )
 CPU_SHARES=$(( 1024 - OOM_SCORE_ADJUST ))
 STARTUP_CPU_SHARES=$(( 768 - OOM_SCORE_ADJUST  ))
-echo "Creating systemd ${MASTERNODE_NAME} service for ${DAEMON_NAME}"
+echo "Creating systemd ${GRIDNODE_NAME} service for ${DAEMON_NAME}"
 
-MN_TEXT="Creating systemd shutdown service for all masternode daemons."
-MN_TEXT1="Shutdown service for all masternode daemons"
-if [[ "${NO_MN}" -eq 1 ]]
+GN_TEXT="Creating systemd shutdown service for all gridnode daemons."
+GN_TEXT1="Shutdown service for all gridnode daemons"
+if [[ "${NO_GN}" -eq 1 ]]
 then
-  MN_TEXT="Creating systemd shutdown service for all coin daemons."
-  MN_TEXT1="Shutdown service for all coin daemons"
+  GN_TEXT="Creating systemd shutdown service for all coin daemons."
+  GN_TEXT1="Shutdown service for all coin daemons"
 fi
 
 cat << SYSTEMD_CONF | sudo tee /etc/systemd/system/"${USRNAME}".service >/dev/null
 [Unit]
-Description=${DAEMON_NAME} ${MASTERNODE_NAME} for user ${USRNAME}
+Description=${DAEMON_NAME} ${GRIDNODE_NAME} for user ${USRNAME}
 After=network.target
 
 [Service]
@@ -9581,10 +9273,10 @@ StartupCPUShares=${STARTUP_CPU_SHARES}
 WantedBy=multi-user.target
 SYSTEMD_CONF
 
-echo "${MN_TEXT}"
-cat << SYSTEMD_CONF | sudo tee /etc/systemd/system/multi-masternode-data-shutdown.service >/dev/null
+echo "${GN_TEXT}"
+cat << SYSTEMD_CONF | sudo tee /etc/systemd/system/multi-gridnode-data-shutdown.service >/dev/null
 [Unit]
-Description=${MN_TEXT1}
+Description=${GN_TEXT1}
 Requires=network.target
 RequiresMountsFor=/
 DefaultDependencies=no
@@ -9596,14 +9288,14 @@ User=root
 WorkingDirectory=/root/
 RemainAfterExit=true
 ExecStart=/bin/true
-ExecStop=/bin/bash -ic 'source /var/multi-masternode-data/.bashrc; all_mn_run stop'
+ExecStop=/bin/bash -ic 'source /var/multi-gridnode-data/.bashrc; all_mn_run stop'
 
 [Install]
 WantedBy=multi-user.target
 SYSTEMD_CONF
 
 sudo systemctl daemon-reload
-sudo systemctl enable multi-masternode-data-shutdown.service --now
+sudo systemctl enable multi-gridnode-data-shutdown.service --now
 
 if [[ -z "${IPV6USED}" ]] || [[ "${IPV6USED}" -eq 0 ]]
 then
@@ -9671,18 +9363,18 @@ bind=${BIND}
 ${EXTRA_CONFIG}
 # nodelist=${DROPBOX_ADDNODES}
 # bootstrap=${DROPBOX_BOOTSTRAP}
-# blocks_n_chains=${DROPBOX_BLOCKS_N_CHAINS}
+# blocks_n_chains=${BLOCKS_N_CHAINS}
 # github_repo=${GITHUB_REPO}
 # bin_base=${BIN_BASE}
 # daemon_download=${DAEMON_DOWNLOAD}
 # defaultport=${DEFAULT_PORT}
-# masternode_caller=${MASTERNODE_CALLER}
-# masternode_name=${MASTERNODE_NAME}
-# masternode_prefix=${MASTERNODE_PREFIX}
-# masternode_genkey_command=${MASTERNODE_GENKEY_COMMAND}
-# masternode_privkey=${MASTERNODE_PRIVKEY}
-# masternode_conf=${MASTERNODE_CONF}
-# masternode_list=${MASTERNODE_LIST}
+# GRIDNODE_CALLER=${GRIDNODE_CALLER}
+# GRIDNODE_NAME=${GRIDNODE_NAME}
+# GRIDNODE_PREFIX=${GRIDNODE_PREFIX}
+# GRIDNODE_GENKEY_COMMAND=${GRIDNODE_GENKEY_COMMAND}
+# GRIDNODE_PRIVKEY=${GRIDNODE_PRIVKEY}
+# GRIDNODE_CONF=${GRIDNODE_CONF}
+# GRIDNODE_LIST=${GRIDNODE_LIST}
 # explorer_blockcount_path=${EXPLORER_BLOCKCOUNT_PATH}
 # explorer_blockcount_offset=${EXPLORER_BLOCKCOUNT_OFFSET}
 # explorer_rawtransaction_path=${EXPLORER_RAWTRANSACTION_PATH}
@@ -9703,13 +9395,13 @@ fi
 
 if [[ "${FAST_SYNC}" -ne 1 ]]
 then
-  if [[ ! -z "${DROPBOX_BLOCKS_N_CHAINS}" ]] && [[ "${USE_DROPBOX_BLOCKS_N_CHAINS}" -eq 1 ]]
+  if [[ ! -z "${BLOCKS_N_CHAINS}" ]] && [[ "${USE_BLOCKS_N_CHAINS}" -eq 1 ]]
   then
     echo "Download snapshot."
     "${USRNAME}" dl_blocks_n_chains
   fi
 
-  if [[ $( find "/var/multi-masternode-data/${PROJECT_DIR}/blocks_n_chains/" -type f | wc -l ) -lt 5 ]] && [[ ! -z "${DROPBOX_BOOTSTRAP}" ]] && [[ "${USE_DROPBOX_BOOTSTRAP}" -eq 1 ]]
+  if [[ $( find "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/" -type f | wc -l ) -lt 5 ]] && [[ ! -z "${DROPBOX_BOOTSTRAP}" ]] && [[ "${USE_DROPBOX_BOOTSTRAP}" -eq 1 ]]
   then
     if [[ ! -d "${USR_HOME}/${DIRECTORY}/blocks" ]]
     then
@@ -9731,14 +9423,14 @@ sudo chown -R "${USRNAME}:${USRNAME}" "${USR_HOME}/${DIRECTORY}/"
 "${USRNAME}" explorer_peers conf
 
 # m c a r p e r
-if [ ! -z "${MNKEY}" ]
+if [ ! -z "${GNKEY}" ]
 then
-  # Add private key to config and make masternode.
+  # Add private key to config and make gridnode.
   echo "Setting privkey."
-  "${USRNAME}" privkey "${MNKEY}"
+  "${USRNAME}" privkey "${GNKEY}"
 else
   # Use connect for sync that doesn't drop out.
-  if [[ $( "${USRNAME}" conf | grep -c 'addnode' ) -gt "${DAEMON_CONNECTIONS}" ]] && [[ "${NO_MN}" -eq 0 ]] && [[ "${USE_CONNECT}" -eq 1 ]]
+  if [[ $( "${USRNAME}" conf | grep -c 'addnode' ) -gt "${DAEMON_CONNECTIONS}" ]] && [[ "${NO_GN}" -eq 0 ]] && [[ "${USE_CONNECT}" -eq 1 ]]
   then
     echo "Changing addnode to connect for faster sync."
     "${USRNAME}" addnode_to_connect
@@ -9798,7 +9490,7 @@ then
   echo "bash -i /root/${BIN_BASE_LOWER}d.sh '' '' '' '' 'y'"
 
   # shellcheck disable=SC2941
-  if [[ $( grep 'DROPBOX_BLOCKS_N_CHAINS' "/root/${BIN_BASE_LOWER}d.sh" | wc -c ) -gt 32 ]]
+  if [[ $( grep 'BLOCKS_N_CHAINS' "/root/${BIN_BASE_LOWER}d.sh" | wc -c ) -gt 32 ]]
   then
     echo "Dropbox worked"
     "${USRNAME}" remove_daemon
@@ -9817,10 +9509,10 @@ then
       PS1=''
     fi
 
-    if [[ "$( type "${USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -eq 0 ]]
+    if [[ "$( type "${USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -eq 0 ]]
     then
       # shellcheck disable=SC1091
-      source /var/multi-masternode-data/___temp.sh
+      source /var/multi-gridnode-data/___temp.sh
     fi
 
     echo "${USRNAME} up_gdrive"
@@ -9838,13 +9530,13 @@ then
   echo "Waiting 20 seconds."
   sleep 20
 
-  MN_STATUS=$( "${USRNAME}" "${MASTERNODE_CALLER}status" )
-  MN_DEBUG=$( "${USRNAME}" "${MASTERNODE_CALLER}debug" )
-  if [[ $( echo "${MN_STATUS}" | grep -ciF 'invalid port' ) -gt 0 ]]
+  GN_STATUS=$( "${USRNAME}" "${GRIDNODE_CALLER}status" )
+  GN_DEBUG=$( "${USRNAME}" "${GRIDNODE_CALLER}debug" )
+  if [[ $( echo "${GN_STATUS}" | grep -ciF 'invalid port' ) -gt 0 ]]
   then
     echo "Coin is limited to 1 IPv4"
     sed -i 's/MULTI_IP_MODE.*/MULTI_IP_MODE=3/g' "/root/${BIN_BASE_LOWER}d.sh"
-  elif [[ $( echo "${MN_DEBUG}" | grep -ciF 'invalid port' ) -gt 0 ]]
+  elif [[ $( echo "${GN_DEBUG}" | grep -ciF 'invalid port' ) -gt 0 ]]
   then
     echo "Coin is limited to 1 IPv4"
     sed -i 's/MULTI_IP_MODE.*/MULTI_IP_MODE=3/g' "/root/${BIN_BASE_LOWER}d.sh"
@@ -9861,20 +9553,20 @@ then
 fi
 
 # Get privkey from conf.
-MNKEY=$( "${USRNAME}" privkey )
+GNKEY=$( "${USRNAME}" privkey )
 
 # Generate key and stop master node.
-if [ -z "${MNKEY}" ] && [[ "${NO_MN}" -eq 0 ]]
+if [ -z "${GNKEY}" ] && [[ "${NO_GN}" -eq 0 ]]
 then
-  echo "Generate ${MASTERNODE_GENKEY_COMMAND} on ${USRNAME}"
+  echo "Generate ${GRIDNODE_GENKEY_COMMAND} on ${USRNAME}"
   sleep 1
-  MNKEY=$( "${USRNAME}" "${MASTERNODE_GENKEY_COMMAND}" )
+  GNKEY=$( "${USRNAME}" "${GRIDNODE_GENKEY_COMMAND}" )
   sleep 1
   echo "Stopping ${USRNAME}"
   "${USRNAME}" stop >/dev/null 2>&1
   sleep 1
-  echo "Adding ${MASTERNODE_NAME} key to ${USRNAME} configuration"
-  "${USRNAME}" privkey "${MNKEY}" >/dev/null 2>&1
+  echo "Adding ${GRIDNODE_NAME} key to ${USRNAME} configuration"
+  "${USRNAME}" privkey "${GNKEY}" >/dev/null 2>&1
   sleep 1
 
   if [[ "${DAEMON_CYCLE}" -eq 1 ]]
@@ -9896,7 +9588,7 @@ then
 else
   "${USRNAME}" addnode_remove
 fi
-# Enable masternode to run on system start.
+# Enable gridnode to run on system start.
 sudo systemctl enable "${USRNAME}" 2>&1
 stty sane 2>/dev/null
 
@@ -9906,12 +9598,12 @@ sudo ufw status
 sleep 1
 stty sane 2>/dev/null
 
-if [[ ! -z "${MNSYNC_WAIT_FOR}" ]]
+if [[ ! -z "${GNSYNC_WAIT_FOR}" ]]
 then
   sudo true >/dev/null 2>&1
-  echo "Waiting for ${MASTERNODE_PREFIX}sync status to be ${MNSYNC_WAIT_FOR}"
-  echo "This can sometimes take up to 5-10 minutes; please wait for ${MASTERNODE_PREFIX}sync."
-  while [[ $( "${USRNAME}" "${MASTERNODE_PREFIX}sync" status | grep -cF "${MNSYNC_WAIT_FOR}" ) -eq 0 ]]
+  echo "Waiting for ${GRIDNODE_PREFIX}sync status to be ${GNSYNC_WAIT_FOR}"
+  echo "This can sometimes take up to 5-10 minutes; please wait for ${GRIDNODE_PREFIX}sync."
+  while [[ $( "${USRNAME}" "${GRIDNODE_PREFIX}sync" status | grep -cF "${GNSYNC_WAIT_FOR}" ) -eq 0 ]]
   do
     if [[ ${ARG6} == 'y' ]]
     then
@@ -9926,14 +9618,14 @@ then
   sudo true >/dev/null 2>&1
 fi
 
-if [[ "${NO_MN}" -eq 0 ]]
+if [[ "${NO_GN}" -eq 0 ]]
 then
-  # Output masternode info.
+  # Output gridnode info.
   sleep 1
   "${USRNAME}" wait_for_loaded "${ARG6}"
 
-  "${USRNAME}" "${MASTERNODE_CALLER}status"
-  "${USRNAME}" "${MASTERNODE_CALLER}debug"
+  "${USRNAME}" "${GRIDNODE_CALLER}status"
+  "${USRNAME}" "${GRIDNODE_CALLER}debug"
   sleep 1
   IS_EMPTY=$( type "SENTINEL_SETUP" 2>/dev/null )
   if [ ! -z "${IS_EMPTY}" ]
@@ -10030,19 +9722,19 @@ fi
 
 
 # Add Crontab if not set.
-touch /var/multi-masternode-data/.bashrc
-chmod 666 /var/multi-masternode-data/.bashrc
-sudo cp ~/.bashrc /var/multi-masternode-data/.bashrc
-if [[ $( crontab -l | grep -cF "cp ${HOME}/.bashrc /var/multi-masternode-data/.bashrc" ) -eq 0  ]]
+touch /var/multi-gridnode-data/.bashrc
+chmod 666 /var/multi-gridnode-data/.bashrc
+sudo cp ~/.bashrc /var/multi-gridnode-data/.bashrc
+if [[ $( crontab -l | grep -cF "cp ${HOME}/.bashrc /var/multi-gridnode-data/.bashrc" ) -eq 0  ]]
 then
-  ( crontab -l ; echo "0 * * * * cp ${HOME}/.bashrc /var/multi-masternode-data/.bashrc" ) | crontab -
+  ( crontab -l ; echo "0 * * * * cp ${HOME}/.bashrc /var/multi-gridnode-data/.bashrc" ) | crontab -
 fi
 
 if [[ $( sudo su "${USRNAME}" -c 'crontab -l' | grep -cF "${USRNAME} update_daemon 2>&1" ) -eq 0  ]]
 then
   echo 'Setting up crontab for auto update'
   MINUTES=$((RANDOM % 60))
-  sudo su "${USRNAME}" -c " ( crontab -l ; echo \"${MINUTES} */6 * * * bash -ic 'source /var/multi-masternode-data/.bashrc; ${USRNAME} update_daemon 2>&1' 2>/dev/null\" ) | crontab - "
+  sudo su "${USRNAME}" -c " ( crontab -l ; echo \"${MINUTES} */6 * * * bash -ic 'source /var/multi-gridnode-data/.bashrc; ${USRNAME} update_daemon 2>&1' 2>/dev/null\" ) | crontab - "
 fi
 
 if [[ $( sudo su "${USRNAME}" -c 'crontab -l' | grep -cF "${USRNAME} mnfix 2>&1" ) -eq 0  ]]
@@ -10053,7 +9745,7 @@ then
   MINUTES_B=$(( MINUTES + 40 ))
   sudo rm -f "${USR_HOME}/mnfix.log"
   sudo su "${USRNAME}" -c "touch \"${USR_HOME}/mnfix.log\""
-  sudo su "${USRNAME}" -c " ( crontab -l ; echo \"${MINUTES},${MINUTES_A},${MINUTES_B} * * * * bash -ic 'source /var/multi-masternode-data/.bashrc; ${USRNAME} mnfix 2>&1' 2>&1 >> ${USR_HOME}/mnfix.log \" ) | crontab - "
+  sudo su "${USRNAME}" -c " ( crontab -l ; echo \"${MINUTES},${MINUTES_A},${MINUTES_B} * * * * bash -ic 'source /var/multi-gridnode-data/.bashrc; ${USRNAME} mnfix 2>&1' 2>&1 >> ${USR_HOME}/mnfix.log \" ) | crontab - "
 fi
 
 # Show crontab contents.
@@ -10103,7 +9795,7 @@ then
     fi
   done <<< "$( sudo lslocks -n -r -o PID | sort -un | awk '{print $1 "/"}' )"
   echo
-  echo "NOTICE: If you are running another masternode on the vps make sure to open any ports needed with this command:"
+  echo "NOTICE: If you are running another gridnode on the vps make sure to open any ports needed with this command:"
   echo "${_UFW_OUTPUT}" | sort -V
   echo
 fi
@@ -10133,81 +9825,81 @@ then
   echo "${TIPS}"
   echo
 fi
-if [[ "${NO_MN}" -eq 1 ]]
+if [[ "${NO_GN}" -eq 1 ]]
 then
   stty sane 2>/dev/null
-  rm -f /var/multi-masternode-data/___temp.sh
+  rm -f /var/multi-gridnode-data/___temp.sh
   return
 fi
 
 echo "Check if master node started remotely"
-echo "${USRNAME} ${MASTERNODE_CALLER}debug"
-echo "${USRNAME} ${MASTERNODE_CALLER}status"
+echo "${USRNAME} ${GRIDNODE_CALLER}debug"
+echo "${USRNAME} ${GRIDNODE_CALLER}status"
 echo
-echo "Keep this terminal open until you have started the ${MASTERNODE_NAME} from your wallet. "
-echo "If ${MASTERNODE_PREFIX} start was successful you should see this message displayed in this shell: "
-echo "'${MASTERNODE_NAME} ${USRNAME} started remotely'. "
+echo "Keep this terminal open until you have started the ${GRIDNODE_NAME} from your wallet. "
+echo "If ${GRIDNODE_PREFIX} start was successful you should see this message displayed in this shell: "
+echo "'${GRIDNODE_NAME} ${USRNAME} started remotely'. "
 echo "If you do not see that message, then start it again from your wallet."
 echo "IP and port daemon is using"
 echo "${EXTERNALIP}"
 echo
-echo "${MASTERNODE_PRIVKEY}"
+echo "${GRIDNODE_PRIVKEY}"
 "${USRNAME}" privkey
 echo
 if [ ! -z "${TXID_CONFIRMATIONS}" ] && [ "${TXID_CONFIRMATIONS}" -lt 16 ]
 then
   echo -e "\\e[4mTXID: ${TXHASH} \\e[0m"
   echo -e "\\e[4mis only ${TXID_CONFIRMATIONS} bolcks old. \\e[0m"
-  echo -e "\\e[1;4mWait until the txid is 16 blocks old before starting the ${MASTERNODE_PREFIX}. \\e[0m"
+  echo -e "\\e[1;4mWait until the txid is 16 blocks old before starting the ${GRIDNODE_PREFIX}. \\e[0m"
   echo
 fi
 echo "You might need to add this to your desktop wallet ${CONF}"
-echo "file in order to start the ${MASTERNODE_NAME}"
+echo "file in order to start the ${GRIDNODE_NAME}"
 REMOTE_IP=$( who | tr '()' ' ' | awk '{print $5}' | sed '/^[[:space:]]*$/d' | head -n1 )
 stty sane 2>/dev/null
 echo "externalip=${REMOTE_IP}"
 echo
-echo "Command to start the ${MASTERNODE_NAME} from the "
+echo "Command to start the ${GRIDNODE_NAME} from the "
 echo "desktop/hot/control wallet's debug console:"
-if [[ $( "${USRNAME}" help | awk '{print $1}' | grep -c "start${MASTERNODE_NAME}" ) -gt 0 ]]
+if [[ $( "${USRNAME}" help | awk '{print $1}' | grep -c "start${GRIDNODE_NAME}" ) -gt 0 ]]
 then
-  echo -e "\\e[1mstart${MASTERNODE_NAME} alias false ${USRNAME}_${MNALIAS}\\e[0m"
+  echo -e "\\e[1mstart${GRIDNODE_NAME} alias false ${USRNAME}_${GNALIAS}\\e[0m"
 else
-  echo -e "\\e[1m${MASTERNODE_CALLER}start-alias ${USRNAME}_${MNALIAS}\\e[0m"
+  echo -e "\\e[1m${GRIDNODE_CALLER}start-alias ${USRNAME}_${GNALIAS}\\e[0m"
 fi
 echo
 # Print masternode.conf string.
-echo "The line that goes into ${MASTERNODE_CONF} will have 4 spaces total."
-echo "You will need to restart the desktop wallet for the ${MASTERNODE_NAME} to appear."
+echo "The line that goes into ${GRIDNODE_CONF} will have 4 spaces total."
+echo "You will need to restart the desktop wallet for the ${GRIDNODE_NAME} to appear."
 if [ ! -z "${TXHASH}" ]
 then
-  echo "Full string to paste into ${MASTERNODE_CONF} (all on one line)."
+  echo "Full string to paste into ${GRIDNODE_CONF} (all on one line)."
   echo
   if [[ -z "${IPV6USED}" ]] || [[ "${IPV6USED}" -eq 0 ]]
   then
-    echo -e "\\e[1;7m${USRNAME}_${MNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${MNKEY} ${TXHASH} ${OUTPUTIDX}\\e[0m"
-    echo "${USRNAME}_${MNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${MNKEY} ${TXHASH} ${OUTPUTIDX}" >> "${DAEMON_SETUP_INFO}"
+    echo -e "\\e[1;7m${USRNAME}_${GNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${GNKEY} ${TXHASH} ${OUTPUTIDX}\\e[0m"
+    echo "${USRNAME}_${GNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${GNKEY} ${TXHASH} ${OUTPUTIDX}" >> "${DAEMON_SETUP_INFO}"
   else
-    echo -e "\\e[1;7m${USRNAME}_${MNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${MNKEY} ${TXHASH} ${OUTPUTIDX}\\e[0m"
-    echo "${USRNAME}_${MNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${MNKEY} ${TXHASH} ${OUTPUTIDX}" >> "${DAEMON_SETUP_INFO}"
+    echo -e "\\e[1;7m${USRNAME}_${GNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${GNKEY} ${TXHASH} ${OUTPUTIDX}\\e[0m"
+    echo "${USRNAME}_${GNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${GNKEY} ${TXHASH} ${OUTPUTIDX}" >> "${DAEMON_SETUP_INFO}"
   fi
 else
-  echo "There is almost a full string to paste into the ${MASTERNODE_CONF} file."
-  echo -e "Run \\e[7m${MASTERNODE_CALLER}outputs\\e[0m and add the txhash and outputidx to the line below."
+  echo "There is almost a full string to paste into the ${GRIDNODE_CONF} file."
+  echo -e "Run \\e[7m${GRIDNODE_CALLER}outputs\\e[0m and add the txhash and outputidx to the line below."
   echo "The values when done will be all on one line with 4 spaces total."
   echo
   if [[ -z "${IPV6USED}" ]] || [[ "${IPV6USED}" -eq 0 ]]
   then
-    echo -e "\\e[1;7m${USRNAME}_${MNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${MNKEY}\\e[0m"
-    echo "${USRNAME}_${MNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${MNKEY} " >> "${DAEMON_SETUP_INFO}"
+    echo -e "\\e[1;7m${USRNAME}_${GNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${GNKEY}\\e[0m"
+    echo "${USRNAME}_${GNALIAS} ${PUBIPADDRESS}:${DEFAULT_PORT} ${GNKEY} " >> "${DAEMON_SETUP_INFO}"
   else
-    echo -e "\\e[1;7m${USRNAME}_${MNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${MNKEY}\\e[0m"
-    echo "${USRNAME}_${MNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${MNKEY} " >> "${DAEMON_SETUP_INFO}"
+    echo -e "\\e[1;7m${USRNAME}_${GNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${GNKEY}\\e[0m"
+    echo "${USRNAME}_${GNALIAS} [${PUBIPADDRESS}]:${DEFAULT_PORT} ${GNKEY} " >> "${DAEMON_SETUP_INFO}"
   fi
 fi
 echo
 
-# Start sub process mini monitor that will exit once masternode has started.
+# Start sub process mini monitor that will exit once gridnode has started.
 if [ -z "${SKIP_CONFIRM}" ]
 then
 (
@@ -10224,10 +9916,10 @@ then
     PS1=''
   fi
 
-  if [[ "$( type "${USRNAME}" 2>/dev/null | grep -c '_masternode_dameon_2' )" -eq 0 ]]
+  if [[ "$( type "${USRNAME}" 2>/dev/null | grep -c '_gridnode_dameon_2' )" -eq 0 ]]
   then
     # shellcheck disable=SC1091
-    . /var/multi-masternode-data/___temp.sh
+    . /var/multi-gridnode-data/___temp.sh
   fi
 
   sleep 60
@@ -10272,22 +9964,22 @@ then
       break
     fi
 
-    PID_MN=$( "${USRNAME}" pid )
-    if [[ -z "${PID_MN}" ]] || [[ "${#PID_MN}" -lt 3 ]]
+    PID_GN=$( "${USRNAME}" pid )
+    if [[ -z "${PID_GN}" ]] || [[ "${#PID_GN}" -lt 3 ]]
     then
       sleep 60
       continue
     fi
 
-    MN_UPTIME=$( "${USRNAME}" uptime 2>/dev/null | tr -d '[:space:]' )
-    if [[ "${MN_UPTIME}" -lt 60 ]]
+    GN_UPTIME=$( "${USRNAME}" uptime 2>/dev/null | tr -d '[:space:]' )
+    if [[ "${GN_UPTIME}" -lt 60 ]]
     then
       sleep 60
       continue
     fi
 
-    MN_SYNC=$( "${USRNAME}" "${MASTERNODE_PREFIX}sync status" )
-    if [[ $( echo "${MN_SYNC}" | grep -cE ':\s999|"IsBlockchainSynced": true' ) -lt 2 ]]
+    GN_SYNC=$( "${USRNAME}" "${GRIDNODE_PREFIX}sync status" )
+    if [[ $( echo "${GN_SYNC}" | grep -cE ':\s999|"IsBlockchainSynced": true' ) -lt 2 ]]
     then
       sleep 60
       continue
@@ -10321,33 +10013,33 @@ then
           fi
 
           # Make sure collateral is still valid.
-          MN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq -r ".vout[] | select( (.n)|tonumber == ${OUTPUTIDX} )" 2>/dev/null )
-          MN_WALLET_ADDR_ALT=$( echo "${MN_WALLET_ADDR}" | jq -r '.scriptpubkey.addresses | .[]' 2>/dev/null )
-          if [[ -z "${MN_WALLET_ADDR_ALT}" ]]
+          GN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | tr '[:upper:]' '[:lower:]' | jq -r ".vout[] | select( (.n)|tonumber == ${OUTPUTIDX} )" 2>/dev/null )
+          GN_WALLET_ADDR_ALT=$( echo "${GN_WALLET_ADDR}" | jq -r '.scriptpubkey.addresses | .[]' 2>/dev/null )
+          if [[ -z "${GN_WALLET_ADDR_ALT}" ]]
           then
-            MN_WALLET_ADDR_ALT=$( echo "${MN_WALLET_ADDR}" | jq -r '.address' )
+            GN_WALLET_ADDR_ALT=$( echo "${GN_WALLET_ADDR}" | jq -r '.address' )
           fi
-          MN_WALLET_ADDR="${MN_WALLET_ADDR_ALT}"
+          GN_WALLET_ADDR="${GN_WALLET_ADDR_ALT}"
           # Get correct upper/lower case for the address.
-          MN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | jq '.' | grep -io -m 1 "${MN_WALLET_ADDR}" )
+          GN_WALLET_ADDR=$( echo "${OUTPUTIDX_RAW}" | jq '.' | grep -io -m 1 "${GN_WALLET_ADDR}" )
 
-          MN_WALLET_ADDR_DETAILS=$( wget -4qO- -T 15 -t 2 -o- "${EXPLORER_URL}${EXPLORER_GETADDRESS_PATH}${MN_WALLET_ADDR}" "${BAD_SSL_HACK}" | tr '[:upper:]' '[:lower:]' )
+          GN_WALLET_ADDR_DETAILS=$( wget -4qO- -T 15 -t 2 -o- "${EXPLORER_URL}${EXPLORER_GETADDRESS_PATH}${GN_WALLET_ADDR}" "${BAD_SSL_HACK}" | tr '[:upper:]' '[:lower:]' )
           sleep "${EXPLORER_SLEEP}"
-          MN_WALLET_ADDR_BALANCE=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".balance" 2>/dev/null )
-          if [[ ! "${MN_WALLET_ADDR_BALANCE}" =~ $RE ]]
+          GN_WALLET_ADDR_BALANCE=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".balance" 2>/dev/null )
+          if [[ ! "${GN_WALLET_ADDR_BALANCE}" =~ $RE ]]
           then
-            MN_WALLET_ADDR_BALANCE=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".data" 2>/dev/null )
+            GN_WALLET_ADDR_BALANCE=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".data" 2>/dev/null )
           fi
-          if [[ ! "${MN_WALLET_ADDR_BALANCE}" =~ $RE ]]
+          if [[ ! "${GN_WALLET_ADDR_BALANCE}" =~ $RE ]]
           then
-            MN_WALLET_ADDR_BALANCE=${MN_WALLET_ADDR_DETAILS}
+            GN_WALLET_ADDR_BALANCE=${GN_WALLET_ADDR_DETAILS}
           fi
-          MN_WALLET_ADDR_BALANCE=$( echo "${MN_WALLET_ADDR_BALANCE} / ${EXPLORER_AMOUNT_ADJUST}" | bc )
+          GN_WALLET_ADDR_BALANCE=$( echo "${GN_WALLET_ADDR_BALANCE} / ${EXPLORER_AMOUNT_ADJUST}" | bc )
 
           COLLATERAL_FOUND=0
           while read -r COLLATERAL_LEVEL
           do
-            if [[ $( echo "${MN_WALLET_ADDR_BALANCE}>=${COLLATERAL_LEVEL}" | bc ) -eq 1 ]]
+            if [[ $( echo "${GN_WALLET_ADDR_BALANCE}>=${COLLATERAL_LEVEL}" | bc ) -eq 1 ]]
             then
               COLLATERAL_FOUND=1
               break
@@ -10365,7 +10057,7 @@ then
           fi
 
           # Make sure it didn't get staked.
-          TXIDS_AFTER_COLLATERAL=$( echo "${MN_WALLET_ADDR_DETAILS}" | jq -r ".last_txs[][] " 2>/dev/null | grep -vE "vin|vout" | sed -n -e "/${TXHASH}/,\$p" | grep -v "${TXHASH}" )
+          TXIDS_AFTER_COLLATERAL=$( echo "${GN_WALLET_ADDR_DETAILS}" | jq -r ".last_txs[][] " 2>/dev/null | grep -vE "vin|vout" | sed -n -e "/${TXHASH}/,\$p" | grep -v "${TXHASH}" )
           if [ ! -z "${TXIDS_AFTER_COLLATERAL}" ]
           then
             # Check each tx after the given tx to see if it was used as an input.
@@ -10403,58 +10095,58 @@ then
       fi
     fi
 
-    PID_MN=$( "${USRNAME}" pid )
-    if [[ -z "${PID_MN}" ]] || [[ "${#PID_MN}" -lt 3 ]]
+    PID_GN=$( "${USRNAME}" pid )
+    if [[ -z "${PID_GN}" ]] || [[ "${#PID_GN}" -lt 3 ]]
     then
       sleep 60
       continue
     fi
 
     # Check status number.
-    MNINFO=$( "${USRNAME}" "${MASTERNODE_PREFIX}info" 2>/dev/null )
+    GNINFO=$( "${USRNAME}" "${GRIDNODE_PREFIX}info" 2>/dev/null )
     sleep 5
 
-    PID_MN=$( "${USRNAME}" pid )
-    if [[ -z "${PID_MN}" ]] || [[ "${#PID_MN}" -lt 3 ]]
+    PID_GN=$( "${USRNAME}" pid )
+    if [[ -z "${PID_GN}" ]] || [[ "${#PID_GN}" -lt 3 ]]
     then
       sleep 60
       continue
     fi
 
-    MNDEBUG=$( "${USRNAME}" "${MASTERNODE_CALLER}debug" 2>/dev/null )
+    GNDEBUG=$( "${USRNAME}" "${GRIDNODE_CALLER}debug" 2>/dev/null )
     sleep 5
-    if [ ! -z "${MNDEBUG}" ]
+    if [ ! -z "${GNDEBUG}" ]
     then
-      if [[ $( echo "${MNDEBUG}" | grep -ic 'successfully started' ) -gt 0 ]] || [[ $( echo "${MNDEBUG}" | grep -ic 'started remotely' ) -gt 0 ]]
+      if [[ $( echo "${GNDEBUG}" | grep -ic 'successfully started' ) -gt 0 ]] || [[ $( echo "${GNDEBUG}" | grep -ic 'started remotely' ) -gt 0 ]]
       then
-        MNCOUNT=$( "${USRNAME}" "${MASTERNODE_CALLER}count" 2>/dev/null )
+        GNCOUNT=$( "${USRNAME}" "${GRIDNODE_CALLER}count" 2>/dev/null )
         sleep 0.5
-        if [[ $( echo "${MNCOUNT}" | grep -c 'total' ) -gt 0 ]]
+        if [[ $( echo "${GNCOUNT}" | grep -c 'total' ) -gt 0 ]]
         then
-          MNCOUNT=$( echo "${MNCOUNT}" | jq -r '.total' 2>/dev/null )
+          GNCOUNT=$( echo "${GNCOUNT}" | jq -r '.total' 2>/dev/null )
         fi
         if [ -z "${SKIP_CONFIRM}" ] && [[ "${MINI_MONITOR_RUN}" -ne 0 ]]
         then
           echo
-          "${USRNAME}" "${MASTERNODE_PREFIX}info" status
+          "${USRNAME}" "${GRIDNODE_PREFIX}info" status
           sleep 0.5
-          "${USRNAME}" "${MASTERNODE_CALLER}status"
+          "${USRNAME}" "${GRIDNODE_CALLER}status"
           sleep 0.5
-          "${USRNAME}" "${MASTERNODE_CALLER}debug"
+          "${USRNAME}" "${GRIDNODE_CALLER}debug"
           echo
-          echo -e "\\e[1;4m ${MASTERNODE_NAME} ${USRNAME} successfully started! \\e[0m"
-          echo "This is ${MASTERNODE_NAME} number ${MNCOUNT} in the network."
-          if [[ "${MINI_MONITOR_MN_QUEUE}" -eq 1 ]]
+          echo -e "\\e[1;4m ${GRIDNODE_NAME} ${USRNAME} successfully started! \\e[0m"
+          echo "This is ${GRIDNODE_NAME} number ${GNCOUNT} in the network."
+          if [[ "${MINI_MONITOR_GN_QUEUE}" -eq 1 ]]
           then
-            MNHOURS=$( echo "${MNCOUNT} * ${BLOCKTIME} / 1200" | bc -l )
-            printf "First payout will be in approximately %.*f hours\\n" 1 "${MNHOURS}"
+            GNHOURS=$( echo "${GNCOUNT} * ${BLOCKTIME} / 1200" | bc -l )
+            printf "First payout will be in approximately %.*f hours\\n" 1 "${GNHOURS}"
           fi
           echo
           echo "Press Enter to continue"
           echo
         fi
         break
-      elif [[ "${#MNINFO}" -gt 60 ]]
+      elif [[ "${#GNINFO}" -gt 60 ]]
       then
         if [[ ${RESTART_COUNTER} =~ ${RE} ]] && [[ "${RESTART_COUNTER}" -eq 0 ]]
         then
@@ -10465,8 +10157,8 @@ then
         else
           if [ -z "${SKIP_CONFIRM}" ] && [[ "${MINI_MONITOR_RUN}" -ne 0 ]]
           then
-            echo "${USRNAME}_${MNALIAS}"
-            echo "Start ${MASTERNODE_NAME} again from desktop wallet."
+            echo "${USRNAME}_${GNALIAS}"
+            echo "Start ${GRIDNODE_NAME} again from desktop wallet."
             echo "Please wait for your transaction to be older than 16 blocks and try again."
             echo "You might need to restart the daemon by running this on the vps"
             echo
@@ -10482,17 +10174,17 @@ then
       fi
     fi
 
-    PID_MN=$( "${USRNAME}" pid )
-    if [[ -z "${PID_MN}" ]] || [[ "${#PID_MN}" -lt 3 ]]
+    PID_GN=$( "${USRNAME}" pid )
+    if [[ -z "${PID_GN}" ]] || [[ "${#PID_GN}" -lt 3 ]]
     then
       sleep 60
       continue
     fi
 
-    # Restart masternode if not out of loop after 16 blocks.
-    MN_UPTIME=$( "${USRNAME}" uptime 2>/dev/null | tr -d '[:space:]' )
+    # Restart gridnode if not out of loop after 16 blocks.
+    GN_UPTIME=$( "${USRNAME}" uptime 2>/dev/null | tr -d '[:space:]' )
     BLOCKS_16=$( echo "16 * ${BLOCKTIME}" | bc )
-    if [[ "${MN_UPTIME}" =~ $RE ]] && [ "${MN_UPTIME}" -gt "${BLOCKS_16}" ]
+    if [[ "${GN_UPTIME}" =~ $RE ]] && [ "${GN_UPTIME}" -gt "${BLOCKS_16}" ]
     then
       "${USRNAME}" stop >/dev/null 2>&1
       "${USRNAME}" start >/dev/null 2>&1
@@ -10506,7 +10198,7 @@ then
 fi
 
 stty sane 2>/dev/null
-rm -f /var/multi-masternode-data/___temp.sh
+rm -f /var/multi-gridnode-data/___temp.sh
 sleep 1
 
 }
@@ -10542,7 +10234,6 @@ if [[ "${ARG1}" == 'COMPILE_DAEMON' ]]
 then
   echo "COMPILE_DAEMON"
   GITHUB_REPO="${2}"
-  GET_MISSING_COIN_PARAMS
   echo "${GITHUB_REPO}" "${DAEMON_BIN}" "${CONTROLLER_BIN}"
   sleep 5
   COMPILE_DAEMON "${GITHUB_REPO}" "${DAEMON_BIN}" "${CONTROLLER_BIN}"
@@ -10555,4 +10246,4 @@ stty sane 2>/dev/null
 echo "Script Loaded."
 echo
 sleep 0.1
-# End of masternode setup script.
+# End of gridnode setup script.

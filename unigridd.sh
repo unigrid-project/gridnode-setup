@@ -10,7 +10,7 @@
 # Run this file
 
 ```
-bash -ic "$(wget -4qO- -o- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh)" ; source ~/.bashrc
+bash -ic "$(wget -4qO- -o- raw.githubusercontent.com/unigrid-project/gridnode-setup/master/unigridd.sh)" ; source ~/.bashrc
 ```
 
 '
@@ -52,7 +52,7 @@ DROPBOX_ADDNODES='https://unigrid.org/binaries/addnodes.txt'
 # Dropbox Bootstrap.
 DROPBOX_BOOTSTRAP='https://unigrid.org/binaries/bootstrap.zip'
 # Dropbox blocks and chainstake folders.
-DROPBOX_BLOCKS_N_CHAINS='https://unigrid.org/binaries/blocks_n_chains.tar.gz'
+BLOCKS_N_CHAINS='https://unigrid.org/binaries/blocks_n_chains.tar.gz'
 
 ASCII_ART () {
 echo -e "\e[0m"
@@ -73,16 +73,16 @@ UNIGRID
 cd ~/ || exit
 COUNTER=0
 rm -f ~/___mn.sh
-while [[ ! -f ~/___mn.sh ]] || [[ $( grep -Fxc "# End of masternode setup script." ~/___mn.sh ) -eq 0 ]]
+while [[ ! -f ~/___mn.sh ]] || [[ $( grep -Fxc "# End of gridnode setup script." ~/___mn.sh ) -eq 0 ]]
 do
   rm -f ~/___mn.sh
-  echo "Downloading Masternode Setup Script."
-  wget -4qo- raw.githubusercontent.com/unigrid-project/masternode-setup/master/masternode.sh -O ~/___mn.sh
+  echo "Downloading gridnode Setup Script."
+  wget -4qo- raw.githubusercontent.com/unigrid-project/gridnode-setup/master/gridnode.sh -O ~/___mn.sh
   COUNTER=1
   if [[ "${COUNTER}" -gt 3 ]]
   then
     echo
-    echo "Download of masternode setup script failed."
+    echo "Download of gridnode setup script failed."
     echo
     exit 1
   fi
