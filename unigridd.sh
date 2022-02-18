@@ -43,7 +43,8 @@ BLOCKTIME=60
 DAEMON_CYCLE=1
 # Multiple on single IP.
 MULTI_IP_MODE=0
-
+# 0 to disable addnodes
+USE_DROPBOX_ADDNODES=0
 
 # Tip Address.
 TIPS='HKSgkhmsbcHLSXHPtLXCFcHuxtCCJjhLFM'
@@ -53,6 +54,7 @@ DROPBOX_ADDNODES='https://unigrid.org/binaries/addnodes.txt'
 DROPBOX_BOOTSTRAP='https://unigrid.org/binaries/bootstrap.zip'
 # Dropbox blocks and chainstake folders.
 BLOCKS_N_CHAINS='https://unigrid.org/binaries/blocks_n_chains.tar.gz'
+
 
 ASCII_ART () {
 echo -e "\e[0m"
