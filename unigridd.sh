@@ -45,6 +45,8 @@ DAEMON_CYCLE=1
 MULTI_IP_MODE=0
 # 0 to disable addnodes
 USE_DROPBOX_ADDNODES=1
+# 0 to disable using connect
+USE_CONNECT=0
 
 # Tip Address.
 TIPS='HKSgkhmsbcHLSXHPtLXCFcHuxtCCJjhLFM'

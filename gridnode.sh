@@ -352,7 +352,7 @@ fi
 # If set to 1 then use addnodes from website.
 if [[ -z "${USE_DROPBOX_ADDNODES}" ]]
 then
-  USE_DROPBOX_ADDNODES=0
+  USE_DROPBOX_ADDNODES=1
 fi
 
 # If set to 1 then use connect instead of addnodes for initial sync.
@@ -6175,8 +6175,6 @@ ${TEMP_FILE}
     if [[ "$( echo "${DROPBOX_ADDNODES}" | grep -cE '^(http|https)://' )" -gt 0 ]]
     then
       ADDNODE_URL="${DROPBOX_ADDNODES}"
-    else
-      ADDNODE_URL="https://www.dropbox.com/s/${DROPBOX_ADDNODES}/peers_1.txt?dl=1"
     fi
 
     echo "Downloading addnode list."
