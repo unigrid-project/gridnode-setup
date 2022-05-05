@@ -337,22 +337,22 @@ then
   EXPLORER_PEERS='api/getpeerinfo'
 fi
 
-# If set to 1 then use blocks n chains from dropbox.
+# If set to 1 then use blocks n chains from website.
 if [[ -z "${USE_BLOCKS_N_CHAINS}" ]]
 then
   USE_BLOCKS_N_CHAINS=1
 fi
 
-# If set to 1 then use bootstrap from dropbox.
+# If set to 1 then use bootstrap from website.
 if [[ -z "${USE_DROPBOX_BOOTSTRAP}" ]]
 then
-  USE_DROPBOX_BOOTSTRAP=1
+  USE_DROPBOX_BOOTSTRAP=0
 fi
 
-# If set to 1 then use addnodes from dropbox.
+# If set to 1 then use addnodes from website.
 if [[ -z "${USE_DROPBOX_ADDNODES}" ]]
 then
-  USE_DROPBOX_ADDNODES=1
+  USE_DROPBOX_ADDNODES=0
 fi
 
 # If set to 1 then use connect instead of addnodes for initial sync.
