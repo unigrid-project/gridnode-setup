@@ -4657,7 +4657,7 @@ ${USER_HOME_DIR}/sentinel/venv/bin/python2
   elif [ "${ARG9}" == "mnlistfull" ] || [ "${ARG9}" == "${_GRIDNODE_PREFIX}listfull" ]
   then
   (
-    GN_LIST=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" gridnode list )
+    GN_LIST=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" masternode list )
     if [[ -z $( echo "${GN_LIST}" | jq '.[].rank' 2>/dev/null | tr -d '\040\011\012\015' ) ]]
     then
       if [[ -z "${ARG10}" ]]
@@ -4691,7 +4691,7 @@ sentinelstate
       TEMP_FILE_NAME2=$( mktemp )
       while read -r ATTRIBUTE
       do
-        GN_LIST_INFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" gridnode list "${ATTRIBUTE}" | jq '.' 2>/dev/null |  tr -d ' ' | sed '/^$/d' )
+        GN_LIST_INFO=$( _gridnode_dameon_2 "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${7}" "${8}" masternode list "${ATTRIBUTE}" | jq '.' 2>/dev/null |  tr -d ' ' | sed '/^$/d' )
         if [[ -z "${GN_LIST_INFO}" ]]
         then
           continue
