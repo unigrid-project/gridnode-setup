@@ -9357,11 +9357,11 @@ logtimestamps=1
 listen=1
 externalip=${EXTERNALIP}
 bind=${BIND}
-addnode=dnsseed1.unigrid.org
-addnode=dnsseed2.unigrid.org
-addnode=dnsseed3.unigrid.org
-addnode=dnsseed4.unigrid.org
-addnode=dnsseed5.unigrid.org
+addnode=seed1.unigrid.org
+addnode=seed2.unigrid.org
+addnode=seed3.unigrid.org
+addnode=seed4.unigrid.org
+addnode=seed5.unigrid.org
 ${EXTRA_CONFIG}
 # nodelist=${DROPBOX_ADDNODES}
 # bootstrap=${DROPBOX_BOOTSTRAP}
