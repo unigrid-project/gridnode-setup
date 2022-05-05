@@ -358,7 +358,7 @@ fi
 # If set to 1 then use connect instead of addnodes for initial sync.
 if [[ -z "${USE_CONNECT}" ]]
 then
-  USE_CONNECT=1
+  USE_CONNECT=0
 fi
 
 if [[ -z "${IPV4}" ]]
