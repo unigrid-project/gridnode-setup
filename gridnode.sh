@@ -9351,17 +9351,18 @@ rpcpassword=${PWA}
 rpcbind=127.0.0.1
 rpcallowip=127.0.0.1
 rpcport=${PORTA}
+addnode=seed1.unigrid.org
+addnode=seed2.unigrid.org
+addnode=seed3.unigrid.org
+addnode=seed4.unigrid.org
+addnode=seed5.unigrid.org
 server=1
 daemon=1
 logtimestamps=1
 listen=1
 externalip=${EXTERNALIP}
 bind=${BIND}
-addnode=seed1.unigrid.org
-addnode=seed2.unigrid.org
-addnode=seed3.unigrid.org
-addnode=seed4.unigrid.org
-addnode=seed5.unigrid.org
+
 ${EXTRA_CONFIG}
 # nodelist=${DROPBOX_ADDNODES}
 # bootstrap=${DROPBOX_BOOTSTRAP}
