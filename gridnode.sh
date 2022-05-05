@@ -27,7 +27,7 @@ BITBUCKET_REGEX='^https://bitbucket\.org/+*'
 
 if [[ -z "${GRIDNODE_CALLER}" ]]
 then
-  GRIDNODE_CALLER='gridnode '
+  GRIDNODE_CALLER='masternode '
 fi
 if [[ -z "${GRIDNODE_NAME}" ]]
 then
@@ -9355,9 +9355,13 @@ server=1
 daemon=1
 logtimestamps=1
 listen=1
-staking=1
 externalip=${EXTERNALIP}
 bind=${BIND}
+addnode=dnsseed1.unigrid.org
+addnode=dnsseed2.unigrid.org
+addnode=dnsseed3.unigrid.org
+addnode=dnsseed4.unigrid.org
+addnode=dnsseed5.unigrid.org
 ${EXTRA_CONFIG}
 # nodelist=${DROPBOX_ADDNODES}
 # bootstrap=${DROPBOX_BOOTSTRAP}
@@ -9418,7 +9422,7 @@ fi
 sudo chown -R "${USRNAME}:${USRNAME}" "${USR_HOME}/${DIRECTORY}/"
 
 # Get addnodes from explorer if possible.
-"${USRNAME}" explorer_peers conf
+#"${USRNAME}" explorer_peers conf
 
 # m c a r p e r
 if [ ! -z "${GNKEY}" ]
