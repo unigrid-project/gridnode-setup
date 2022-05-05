@@ -5996,9 +5996,9 @@ ${TEMP_FILE}
         echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/ to ${DIR}/txleveldb/"
       fi
 
-      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" ]] ; then
-        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/supplycache.dat" ]] ; then
+        sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/supplycache.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/supplycache.dat to ${DIR}/"
       fi
       if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" ]] ; then
         sudo "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" "${DIR}/"
@@ -6098,9 +6098,9 @@ ${TEMP_FILE}
         echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/txleveldb/ to ${DIR}/txleveldb/"
       fi
 
-      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" ]] ; then
-        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat" "${DIR}/"
-        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/mncache.dat to ${DIR}/"
+      if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/supplycache.dat" ]] ; then
+        "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/supplycache.dat" "${DIR}/"
+        echo "${MOVE_OR_COPY_TEXT} /var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/supplycache.dat to ${DIR}/"
       fi
       if [[ -r "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" ]] ; then
         "${MOVE_OR_COPY}" "${MOVE_OR_COPY_OPT}" "/var/multi-gridnode-data/${PROJECT_DIR}/blocks_n_chains/fee_estimates.dat" "${DIR}/"
